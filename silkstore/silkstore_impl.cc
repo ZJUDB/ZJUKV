@@ -6,7 +6,7 @@
 #include <queue>
 #include <memory>
 #include <functional>
-
+#include <cmath>
 #include "db/filename.h"
 #include "db/log_reader.h"
 #include "db/memtable.h"
@@ -418,7 +418,7 @@ Status SilkStore::MakeRoomForWrite(bool force) {
                     (memtable_capacity_ + segment_manager_->ApproximateSize()) / options_.memtbl_to_L0_ratio;
             new_memtable_capacity = std::min(options_.max_memtbl_capacity,
                                              std::max(options_.write_buffer_size, new_memtable_capacity));
-            Log(options_.info_log, "new memtable capacity %llu\n", new_memtable_capacity);
+            Log(options_.info_log, "new memtable capacity %lu\n", new_memtable_capacity);
             memtable_capacity_ = new_memtable_capacity;
             allowed_num_leaves = std::ceil(new_memtable_capacity / (options_.storage_block_size + 0.0));
             DynamicFilter *dynamic_filter = nullptr;
@@ -1615,7 +1615,7 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
         assert(seg_builder->RunStarted() == false);
         s = seg_builder->StartMiniRun();
         if (!s.ok()) {
-            fprintf(stderr, s.ToString().c_str());
+            fprintf(stderr,"%s", s.ToString().c_str());
             return s;
         }
         size_t bytes = 0;
@@ -1625,7 +1625,7 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
             ParsedInternalKey parsed_internal_key;
             if (!ParseInternalKey(mit->key(), &parsed_internal_key)) {
                 s = Status::InvalidArgument("error parsing key from immutable table during compaction");
-                fprintf(stderr, s.ToString().c_str());
+                fprintf(stderr,"%s", s.ToString().c_str());
                 return s;
             }
             // A leaf holds at least one key-value pair and at most options_.leaf_datasize_thresh bytes of data.

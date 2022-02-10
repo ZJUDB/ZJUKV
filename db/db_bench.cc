@@ -1,7 +1,7 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
-
+#include <cmath>
 #include <unordered_set>
 #include <sstream>
 #include <sys/types.h>
@@ -1110,7 +1110,7 @@ class Benchmark {
     }
     delete iter;
     char msg[100];
-    snprintf(msg, sizeof(msg), "%lld bytes %d reads", bytes, i);
+    snprintf(msg, sizeof(msg), "%ld bytes %d reads", bytes, i);
     thread->stats.AddMessage(msg);
     thread->stats.AddBytes(bytes);
   }
