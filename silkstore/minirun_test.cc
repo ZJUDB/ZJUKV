@@ -202,7 +202,7 @@ i<kNum;
 ++i) {
 char key_buf[100];
 snprintf(key_buf,
-sizeof(key_buf), "key%06d", i);
+sizeof(key_buf), "key %06d", i);
 keys[i] =
 string(key_buf,
 9);

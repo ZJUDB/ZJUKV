@@ -1,12 +1,12 @@
 //
 // Created by zxjcarrot on 2019-07-05.
 //
-
+#include <cmath>
 #include <thread>
 #include <queue>
 #include <memory>
 #include <functional>
-#include <cmath>
+
 #include "db/filename.h"
 #include "db/log_reader.h"
 #include "db/memtable.h"
@@ -99,6 +99,8 @@ SilkStore::SilkStore(const Options &raw_options, const std::string &dbname)
           tmp_batch_(new WriteBatch),
           background_compaction_scheduled_(false),
           leaf_optimization_func_([]() {}),
+          background_leaf_op_finished_signal_(&leaf_op_mutex_),
+          background_leaf_optimization_scheduled_(false),
           manual_compaction_(nullptr) {
     has_imm_.Release_Store(nullptr);
 }
@@ -112,6 +114,12 @@ SilkStore::~SilkStore() {
         background_work_finished_signal_.Wait();
     }
     mutex_.Unlock();
+
+    leaf_op_mutex_.Lock();
+    while (background_leaf_optimization_scheduled_) {
+        background_leaf_op_finished_signal_.Wait();
+    }
+    leaf_op_mutex_.Unlock();
 
     // Delete leaf index
     delete leaf_index_;
@@ -309,6 +317,8 @@ Status SilkStore::Recover() {
             it->Next();
         }
         allowed_num_leaves = num_leaves;
+        size_t new_memtable_capacity_ = (allowed_num_leaves + 1) * options_.storage_block_size; // todo 怎么设置合理
+        memtable_capacity_ = new_memtable_capacity_ > memtable_capacity_ ? new_memtable_capacity_ : memtable_capacity_;
         SequenceNumber log_start_seq_num = std::stoi(current_content);
         s = RecoverLogFile(log_start_seq_num, &max_sequence_);
     }
@@ -316,9 +326,24 @@ Status SilkStore::Recover() {
         return s;
 
     leaf_optimization_func_ = [this]() {
+
         this->OptimizeLeaf();
-        env_->ScheduleDelayedTask(leaf_optimization_func_, LeafStatStore::read_interval_in_micros);
+
+        background_leaf_optimization_scheduled_ = false;
+        background_leaf_op_finished_signal_.SignalAll();
+        leaf_op_mutex_.Unlock();
+
+        if (shutting_down_.Acquire_Load()) {
+            // No more background work when shutting down.
+        } else {
+            leaf_op_mutex_.Lock();
+            background_leaf_optimization_scheduled_ = true;
+            env_->ScheduleDelayedTask(leaf_optimization_func_, LeafStatStore::read_interval_in_micros);
+        }
     };
+
+    leaf_op_mutex_.Lock();
+    background_leaf_optimization_scheduled_ = true;
     env_->ScheduleDelayedTask(leaf_optimization_func_, LeafStatStore::read_interval_in_micros);
     return s;
 }
@@ -349,10 +374,26 @@ Status SilkStore::Delete(const WriteOptions &options, const Slice &key) {
     return DB::Delete(options, key);
 }
 
-static void SilkStoreNewIteratorCleanup(void *arg1, void *arg2) {
-    static_cast<MemTable *>(arg1)->Unref();
-    if (arg2) static_cast<MemTable *>(arg2)->Unref();
-}
+namespace {
+
+    struct IterState {
+        port::Mutex* const mu;
+        MemTable* const mem GUARDED_BY(mu);
+        MemTable* const imm GUARDED_BY(mu);
+
+        IterState(port::Mutex* mutex, MemTable* mem, MemTable* imm)
+                : mu(mutex), mem(mem), imm(imm) { }
+    };
+
+    static void SilkStoreNewIteratorCleanup(void *arg1, void *arg2) {
+        IterState* state = reinterpret_cast<IterState*>(arg1);
+        state->mu->Lock();
+        state->mem->Unref();
+        if (state->imm != nullptr) state->imm->Unref();
+        state->mu->Unlock();
+        delete state;
+    }
+}  // anonymous namespace
 
 const Snapshot *SilkStore::GetSnapshot() {
     MutexLock l(&mutex_);
@@ -379,7 +420,8 @@ Iterator *SilkStore::NewIterator(const ReadOptions &ropts) {
     list.push_back(leaf_store_->NewIterator(ropts));
     Iterator *internal_iter =
             NewMergingIterator(&internal_comparator_, &list[0], list.size());
-    internal_iter->RegisterCleanup(SilkStoreNewIteratorCleanup, mem_, imm_);
+    IterState* cleanup = new IterState(&mutex_, mem_, imm_);
+    internal_iter->RegisterCleanup(SilkStoreNewIteratorCleanup, cleanup, nullptr);
     return leveldb::silkstore::NewDBIterator(internal_comparator_.user_comparator(), internal_iter,
                                              seqno);
 }
@@ -1100,7 +1142,7 @@ std::string SilkStore::SegmentsSpaceUtilityHistogram() {
 
 int SilkStore::GarbageCollect() {
     MutexLock g(&GCMutex);
-
+    Log(options_.info_log, "Garbage Collect(gc).");
     WriteBatch leaf_index_wb;
     // Simple policy: choose the segment with maximum number of invalidated runs
     constexpr int kGCSegmentCandidateNum = 5;
@@ -1113,12 +1155,15 @@ int SilkStore::GarbageCollect() {
     for (auto seg : candidates) {
         GarbageCollectSegment(seg, appender, leaf_index_wb);
     }
+
     if (leaf_index_wb.ApproximateSize()) {
         leaf_index_->Write({}, &leaf_index_wb);
     }
     for (auto seg: candidates) {
         segment_manager_->RemoveSegment(seg->SegmentId());
     }
+    //Log(options_.info_log, "gc collect %lu\n", candidates.size());
+
     return candidates.size();
 }
 
@@ -1139,7 +1184,7 @@ SilkStore::InvalidateLeafRuns(const LeafIndexEntry &leaf_index_entry, size_t sta
 }
 
 Status SilkStore::OptimizeLeaf() {
-    Log(options_.info_log, "Updating read hotness for all leaves.");
+    //Log(options_.info_log, "Updating read hotness for all leaves.");
     stat_store_.UpdateReadHotness();
 
     if (options_.enable_leaf_read_opt == false)
@@ -1156,7 +1201,6 @@ Status SilkStore::OptimizeLeaf() {
         }
     };
     MutexLock g(&GCMutex);
-
     auto leaf_index_snapshot = leaf_index_->GetSnapshot();
     DeferCode c([this, &leaf_index_snapshot]() { leaf_index_->ReleaseSnapshot(leaf_index_snapshot); });
 
@@ -1237,19 +1281,283 @@ Status SilkStore::OptimizeLeaf() {
         stat_store_.UpdateLeafNumRuns(*item.leaf_max_key, 1);
     }
     if (compacted_runs)
-        fprintf(stderr, "Leaf Optimization compacted %d runs\n", compacted_runs);
+        Log(options_.info_log, "Leaf Optimization compacted %d runs\n", compacted_runs);
+//        fprintf(stderr, "Leaf Optimization compacted %d runs\n", compacted_runs);
     if (seg_builder.get()) {
         return seg_builder->Finish();
     }
     if (leaf_index_wb.ApproximateSize()) {
         return leaf_index_->Write(WriteOptions{}, &leaf_index_wb);
     }
+
     return s;
 }
 
 constexpr size_t kLeafIndexWriteBufferMaxSize = 4 * 1024 * 1024;
 
+
+void SilkStore::PrepareLeafsNeedSplit(bool force) {
+    ReadOptions ro;
+    ro.snapshot = leaf_index_->GetSnapshot();
+    // Release snapshot after the traversal is done
+    DeferCode c([&ro, this]() {
+        leaf_index_->ReleaseSnapshot(ro.snapshot);
+    });
+
+    std::unique_ptr<Iterator> iit(leaf_index_->NewIterator(ro));
+    iit->SeekToFirst();
+
+    while (iit->Valid()) {
+
+        LeafIndexEntry leaf_index_entry(iit->value());
+        int num_miniruns = leaf_index_entry.GetNumMiniRuns();
+
+        if (force ||
+            num_miniruns >= options_.leaf_max_num_miniruns) {
+            //Log(options_.info_log, "MakeRoomInLeafLayer Process %d\n", num_miniruns);
+            leafs_need_split.emplace_back(iit->key().ToString(), iit->value().ToString());
+        }
+        // Record the data read from leaf_index as well
+        stats_.Add(iit->key().size() + iit->value().size(), 0);
+        iit->Next();
+    }
+    split_subtask_states_.resize(split_leaf_num_threads_);
+
+//    for (auto & kv:leafs_need_split) {
+//        std::string k = kv.max_key_, v = kv.value_;
+//        Log(options_.info_log, "k: %s  v: %s\n", k.c_str(), v.c_str());
+//    }
+    Log(options_.info_log, "total kv size: %ld\n", leafs_need_split.size());
+}
+
+void SilkStore::ProcessOneLeaf(SingleLeaf &leaf,
+                             SplitLeafTaskState &state,
+                             GroupedSegmentAppender &grouped_segment_appender) {
+
+    WriteBatch &leaf_index_wb = state.leaf_index_wb_;
+    SequenceNumber seq_num = max_sequence_;
+
+    auto SplitLeaf = [&grouped_segment_appender, &leaf_index_wb, this](const LeafIndexEntry &leaf_index_entry,
+                                                                       SequenceNumber seq_num,
+                                                                       std::vector<std::string> &max_keys,
+                                                                       std::vector<std::string> &max_key_index_entry_bufs) {
+        Status s;
+        /* We use DBIter to get the most recent non-deleted keys. */
+        auto it = dynamic_cast<silkstore::DBIter *>(leaf_store_->NewDBIterForLeaf(ReadOptions{}, leaf_index_entry,
+                                                                                  s,
+                                                                                  user_comparator(), seq_num));
+
+        DeferCode c([it]() { delete it; });
+
+        it->SeekToFirst();
+
+        size_t bytes_current_leaf = 0;
+
+        SegmentBuilder *seg_builder = nullptr;
+        auto AssignSegmentBuilder = [&seg_builder, &grouped_segment_appender, &leaf_index_wb, this]() {
+            bool switched_segment = false;
+            Status s = grouped_segment_appender.MakeRoomForGroupAndGetBuilder(0, &seg_builder, switched_segment);
+            if (!s.ok())
+                return s;
+
+            if (switched_segment && leaf_index_wb.ApproximateSize() > kLeafIndexWriteBufferMaxSize) {
+                // If all previous segments are built successfully and
+                // the leaf_index write buffer exceeds the threshold,
+                // write it down to leaf_index_ to keep the memory footprint small.
+                s = leaf_index_->Write({}, &leaf_index_wb);
+                if (!s.ok())
+                    return s;
+                leaf_index_wb.Clear();
+            }
+            return Status::OK();
+        };
+
+
+        std::string max_key;
+        std::string max_key_index_entry_buf;
+
+        while (it->Valid()) {
+            if (seg_builder == nullptr) {
+                s = AssignSegmentBuilder();
+                if (!s.ok())
+                    return s;
+                seg_builder->StartMiniRun();
+            }
+            bytes_current_leaf += it->internal_key().size() + it->value().size();
+
+             // Since splitting a leaf should preserve the sequence numbers of the most recent non-deleted keys,
+            // we modified DBIter to provide access to its internal key representation.
+
+            seg_builder->Add(it->internal_key(), it->value());
+            max_key = it->key().ToString();
+            it->Next();
+            if (bytes_current_leaf >= options_.leaf_datasize_thresh / 2 || it->Valid() == false) {
+                uint32_t run_no;
+                seg_builder->FinishMiniRun(&run_no);
+                max_key_index_entry_buf.clear();
+                std::string buf;
+                MiniRunIndexEntry minirun_index_entry = MiniRunIndexEntry::Build(seg_builder->SegmentId(), run_no,
+                                                                                 seg_builder->GetFinishedRunIndexBlock(),
+                                                                                 seg_builder->GetFinishedRunFilterBlock(),
+                                                                                 seg_builder->GetFinishedRunDataSize(),
+                                                                                 &buf);
+                LeafIndexEntry new_leaf_index_entry;
+                LeafIndexEntryBuilder::AppendMiniRunIndexEntry(LeafIndexEntry{}, minirun_index_entry,
+                                                               &max_key_index_entry_buf, &new_leaf_index_entry);
+                max_keys.push_back(max_key);
+                max_key_index_entry_bufs.push_back(max_key_index_entry_buf);
+                //Log(options_.info_log, "%d Split k: %s   v: %s\n", max_keys.size(), max_key.c_str(), max_key_index_entry_buf.c_str());
+                if (it->Valid() == true) {
+                    // If there are more key values left, keep working.
+                    s = AssignSegmentBuilder();
+                    if (!s.ok())
+                        return s;
+                    seg_builder->StartMiniRun();
+                }
+                bytes_current_leaf = 0;
+            }
+        }
+
+
+        return Status::OK();
+    };
+
+    Status &s = state.s_;
+    Slice leaf_max_key(leaf.max_key_);
+    LeafIndexEntry leaf_index_entry(leaf.value_);
+
+    SegmentBuilder *seg_builder = nullptr;
+    bool switched_segment = false;
+    s = grouped_segment_appender.MakeRoomForGroupAndGetBuilder(0, &seg_builder, switched_segment);
+    if (!s.ok())
+        return ;
+
+    if (switched_segment && leaf_index_wb.ApproximateSize() > kLeafIndexWriteBufferMaxSize) {
+        // If all previous segments are built successfully and
+        // the leaf_index write buffer exceeds the threshold,
+        // write it down to leaf_index_ to keep the memory footprint small.
+        s = leaf_index_->Write({}, &leaf_index_wb);
+        if (!s.ok())
+            return ;
+        leaf_index_wb.Clear();
+    }
+
+   // uint32_t seg_id = seg_builder->SegmentId();
+
+    //if ((leaf_index_entry.GetLeafDataSize() >= options_.leaf_datasize_thresh)) {
+    //fprintf(stderr, "Splitting leaf with max key %s at sequence num %lu segment %d\n",
+    //        leaf_max_key.ToString().c_str(), seq_num, seg_id);
+    std::vector<std::string> max_keys;
+    std::vector<std::string> max_key_index_entry_bufs;
+    //Log(options_.info_log, "Start split k: %s\n", leaf.max_key_.c_str());
+    s = SplitLeaf(leaf_index_entry, seq_num, max_keys, max_key_index_entry_bufs);
+    assert(max_keys.size() == max_key_index_entry_bufs.size());
+    if (!s.ok())
+        return ;
+    //++num_splits;
+    // Invalidate the miniruns pointed by the old leaf index entry
+    s = InvalidateLeafRuns(leaf_index_entry, 0, leaf_index_entry.GetNumMiniRuns() - 1);
+    if (!s.ok()) {
+        return;
+    }
+
+    //Update the index entries
+    stat_store_.SplitLeaf(leaf_max_key.ToString(), max_keys);
+    leaf_index_wb.Delete(leaf_max_key);
+    //--num_leaves;
+    --(state.leaf_change_num_);
+    for (size_t i = 0; i < max_keys.size(); ++i) {
+        leaf_index_wb.Put(Slice(max_keys[i]), Slice(max_key_index_entry_bufs[i]));
+        stat_store_.UpdateLeafNumRuns(max_keys[i], 1);
+    }
+    //num_leaves += max_keys.size();
+    state.leaf_change_num_ += max_keys.size();
+    // Read all data and merge them, then write all out
+    //stats_.Add(leaf_index_entry.GetLeafDataSize(), leaf_index_entry.GetLeafDataSize());
+    state.read_ += leaf_index_entry.GetLeafDataSize();
+    state.written_ += leaf_index_entry.GetLeafDataSize();
+}
+
+void SilkStore::ProcessSplitLeafSubTasks(int tid) {
+    GroupedSegmentAppender grouped_segment_appender(1, segment_manager_, options_);
+
+    for (size_t i = 0; i < leafs_need_split.size(); ++i) {
+        if (tid == (i % split_leaf_num_threads_)) {
+            ProcessOneLeaf(leafs_need_split[i], split_subtask_states_[tid], grouped_segment_appender);
+            // failed compaction
+            if (!split_subtask_states_[tid].s_.ok()) {
+                break;
+            }
+        }
+    }
+}
+
+void SilkStore::RunSplitLeafTasks() {
+    std::vector<std::thread> thread_pool;
+    thread_pool.reserve(split_leaf_num_threads_-1);
+
+    for (size_t i = 1; i < split_leaf_num_threads_; ++i) {
+        thread_pool.emplace_back(&SilkStore::ProcessSplitLeafSubTasks, this, i);
+    }
+
+    // Always schedule the first task(whether or not there are also
+    // others) in the current thread to be efficient with resources
+    ProcessSplitLeafSubTasks(0);
+
+    // Wait for all other threads (if there are any) to finish execution
+    for (auto& thread : thread_pool) {
+        thread.join();
+    }
+}
+
+Status SilkStore::FinishSplitLeafTasks() {
+    DeferCode c([this]() {
+        leafs_need_split.clear();
+        split_subtask_states_.clear();
+    });
+
+    for (auto &state : split_subtask_states_) {
+        if (!state.s_.ok()) {
+            Log(options_.info_log, "MakeRoomInLeafLayer failed: %s\n", state.s_.ToString().c_str());
+            return state.s_;
+        }
+
+        // Record the read and write
+        stats_.Add(state.read_, state.written_);
+        // Record the change of leaf num
+        num_leaves += state.leaf_change_num_;
+
+        if (state.leaf_index_wb_.ApproximateSize()) {
+            Status s = leaf_index_->Write({}, &(state.leaf_index_wb_));
+            if (!s.ok()) {
+                Log(options_.info_log, "leaf_index_->Write failed: %s\n", s.ToString().c_str());
+                return s;
+            }
+            state.leaf_index_wb_.Clear();
+        }
+    }
+    return Status();
+}
+
 Status SilkStore::MakeRoomInLeafLayer(bool force) {
+    Log(options_.info_log, "MakeRoomInLeafLayer Start\n");
+    mutex_.Unlock();
+
+    restart: {
+        DeferCode c([this]() {
+            mutex_.Lock();
+        });
+        PrepareLeafsNeedSplit(force);
+        RunSplitLeafTasks();
+        Status s = FinishSplitLeafTasks();
+        Log(options_.info_log, "MakeRoomInLeafLayer End\n");
+        return s;
+    };
+}
+
+/*
+Status SilkStore::MakeRoomInLeafLayer(bool force) {
+    Log(options_.info_log, "MakeRoomInLeafLayer Start\n");
     WriteBatch leaf_index_wb;
     SequenceNumber seq_num = max_sequence_;
     mutex_.Unlock();
@@ -1277,7 +1585,7 @@ Status SilkStore::MakeRoomInLeafLayer(bool force) {
                                                                            std::vector<std::string> &max_keys,
                                                                            std::vector<std::string> &max_key_index_entry_bufs) {
             Status s;
-            /* We use DBIter to get the most recent non-deleted keys. */
+            // We use DBIter to get the most recent non-deleted keys.
             auto it = dynamic_cast<silkstore::DBIter *>(leaf_store_->NewDBIterForLeaf(ReadOptions{}, leaf_index_entry,
                                                                                       s,
                                                                                       user_comparator(), seq_num));
@@ -1318,10 +1626,9 @@ Status SilkStore::MakeRoomInLeafLayer(bool force) {
                     seg_builder->StartMiniRun();
                 }
                 bytes_current_leaf += it->internal_key().size() + it->value().size();
-                /*
-                 * Since splitting a leaf should preserve the sequence numbers of the most recent non-deleted keys,
-                 * we modified DBIter to provide access to its internal key representation.
-                 * */
+
+                // Since splitting a leaf should preserve the sequence numbers of the most recent non-deleted keys,
+                // we modified DBIter to provide access to its internal key representation.
                 seg_builder->Add(it->internal_key(), it->value());
                 max_key = it->key().ToString();
                 it->Next();
@@ -1350,6 +1657,7 @@ Status SilkStore::MakeRoomInLeafLayer(bool force) {
                     bytes_current_leaf = 0;
                 }
             }
+
             return Status::OK();
         };
 
@@ -1363,7 +1671,6 @@ Status SilkStore::MakeRoomInLeafLayer(bool force) {
                 num_miniruns >= options_.leaf_max_num_miniruns
                 //|| leaf_index_entry.GetLeafDataSize() >= options_.leaf_datasize_thresh
                     ) {
-
                 SegmentBuilder *seg_builder = nullptr;
                 bool switched_segment = false;
                 s = grouped_segment_appender.MakeRoomForGroupAndGetBuilder(0, &seg_builder, switched_segment);
@@ -1409,7 +1716,7 @@ Status SilkStore::MakeRoomInLeafLayer(bool force) {
                     num_leaves += max_keys.size();
 //                } else {
 //                    self_compaction++;
-//                    /* Number of leaves exceeds allowable quota, try compaction inside the leaf. */
+//                    // Number of leaves exceeds allowable quota, try compaction inside the leaf.
 //                    std::pair<uint32_t, uint32_t> p = ChooseLeafCompactionRunRange(leaf_index_entry);
 //                    uint32_t start_minirun_no = p.first;
 //                    uint32_t end_minirun_no = p.second;
@@ -1450,15 +1757,371 @@ Status SilkStore::MakeRoomInLeafLayer(bool force) {
             }
         }
 
+        Log(options_.info_log, "MakeRoomInLeafLayer End\n");
+
         //fprintf(stderr, "avg runsize %d, self compactions %d, num_splits %d, num_leaves %d, memtable size %lu, segments size %lu\n", imm_->ApproximateMemoryUsage() / (num_leaves == 0 ? 1 : num_leaves), self_compaction, num_splits, (num_leaves == 0 ? 1 : num_leaves), imm_->ApproximateMemoryUsage(), segment_manager_->ApproximateSize());
 
         return s;
     }
 }
+*/
 
 static int num_compactions = 0;
 
+void SilkStore::GenSubcompactionBoundaries() {
+
+    ReadOptions ro;
+    ro.snapshot = leaf_index_->GetSnapshot();
+
+    // Release snapshot after the traversal is done
+    DeferCode c([&ro, this]() {
+        leaf_index_->ReleaseSnapshot(ro.snapshot);
+    });
+
+    std::unique_ptr<Iterator> iit(leaf_index_->NewIterator(ro));
+    iit->SeekToFirst();
+
+    std::string key_buf, value_buf;
+
+    while (iit->Valid()) {
+        // itt return the value for the current entry.  The underlying storage for
+        // the returned slice is valid only until the next modification of
+        // the iterator.
+        key_buf.clear();
+        key_buf.append(iit->key().data(), iit->key().size());
+        boundries_.emplace_back(key_buf);
+
+        value_buf.clear();
+        value_buf.append(iit->value().data(), iit->value().size());
+        leaf_values_.push_back(value_buf);
+        // Record the data read from leaf_index as well
+        stats_.Add(iit->key().size() + iit->value().size(), 0);
+        iit->Next();
+    }
+}
+
+void SilkStore::PrepareCompactionTasks() {
+    GenSubcompactionBoundaries();
+    size_t size = boundries_.size();
+    sub_compact_tasks_.reserve(size + 1);
+    for (size_t i = 0; i <= size; ++i) {
+        // nullptr means unbounded
+        std::string *start = (i == 0) ? nullptr : &boundries_[i-1];
+        std::string *end = (i == size) ? nullptr : &boundries_[i];
+        // nullptr means the leaf is not exist
+        std::string *value = (i == size) ? nullptr : &leaf_values_[i];
+        sub_compact_tasks_.emplace_back(start, end, value);
+    }
+    compact_subtask_states_.resize(compact_num_threads_);
+}
+
+void SilkStore::ProcessKeyValueCompaction(SubCompaction &sub_compact, 
+                                        CompactSubTaskState &state, 
+                                        GroupedSegmentAppender &grouped_segment_appender) {
+
+    std::string *start = sub_compact.start_;
+    std::string *end = sub_compact.end_;
+    std::string *leaf_value = sub_compact.value_;
+    Status &s = state.s_;
+
+    WriteBatch &leaf_index_wb = state.leaf_index_wb_;
+
+    std::unique_ptr<Iterator> mit(imm_->NewIterator());
+
+    SegmentBuilder *seg_builder = nullptr;
+    bool switched_segment = false;
+    s = grouped_segment_appender.MakeRoomForGroupAndGetBuilder(0, &seg_builder, switched_segment);
+    if (!s.ok())
+        return;
+    
+    if (switched_segment && leaf_index_wb.ApproximateSize() > kLeafIndexWriteBufferMaxSize) {
+        // If all previous segments are built successfully and
+        // the leaf_index write buffer exceeds the threshold,
+        // write it down to leaf_index_ to keep the memory footprint small.
+        s = leaf_index_->Write({}, &leaf_index_wb);
+        if (!s.ok())
+            return;
+        leaf_index_wb.Clear();
+    }
+
+    uint32_t seg_id = seg_builder->SegmentId();
+    
+    assert(seg_builder->RunStarted() == false);
+    
+    if (start == nullptr) {
+        mit->SeekToFirst();
+    } else {
+        Slice start_slice(*start);
+
+        SequenceNumber snapshot = max_sequence_;
+        LookupKey lkey(start_slice, snapshot);
+
+        // seek to the first key larger than *start
+        mit->Seek(lkey.memtable_key());
+        //mit->SeekToFirst();
+        while (mit->Valid() && s.ok()) {
+            Slice imm_internal_key = mit->key();
+            ParsedInternalKey parsed_internal_key;
+            if (!ParseInternalKey(imm_internal_key, &parsed_internal_key)) {
+                s = Status::InvalidArgument("error parsing key from immutable table during compaction");
+                return;
+            }
+            if (this->user_comparator()->Compare(parsed_internal_key.user_key, start_slice) > 0) {
+                break;
+            }
+            mit->Next();
+        }
+    }
+
+
+
+    if (end != nullptr) {
+       
+
+        Slice leaf_max_key(*end);
+        Slice leaf_value_slice(*leaf_value);
+        LeafIndexEntry leaf_index_entry(leaf_value_slice);
+        
+        // normal process
+        int minirun_key_cnt = 0;
+        // Build up a minirun of key value payloads
+        while (mit->Valid()  && s.ok()) {
+            Slice imm_internal_key = mit->key();
+            ParsedInternalKey parsed_internal_key;
+            if (!ParseInternalKey(imm_internal_key, &parsed_internal_key)) {
+                s = Status::InvalidArgument("error parsing key from immutable table during compaction");
+                return;
+            }
+            if (this->user_comparator()->Compare(parsed_internal_key.user_key, leaf_max_key) > 0) {
+                break;
+            }
+            if (seg_builder->RunStarted() == false) {
+                s = seg_builder->StartMiniRun();
+                if (!s.ok()) {
+                    return;
+                }
+                assert(seg_builder->RunStarted());
+            }
+            seg_builder->Add(mit->key(), mit->value());
+
+            // Reading data from memtable costs no read io.
+            // Record the write to segment.
+            state.written_ += (mit->key().size() + mit->value().size());
+            ++minirun_key_cnt;
+
+            mit->Next();
+        }
+
+
+        stat_store_.UpdateWriteHotness(leaf_max_key.ToString(), minirun_key_cnt);
+
+        std::string buf, buf2;
+        uint32_t run_no;
+
+        if (seg_builder->RunStarted()) {
+            s = seg_builder->FinishMiniRun(&run_no);
+            if (!s.ok()) {
+                return;
+            }
+
+            // Generate an index entry for the new minirun
+            buf.clear();
+            MiniRunIndexEntry new_minirun_index_entry = MiniRunIndexEntry::Build(seg_id, run_no,
+                                                                                 seg_builder->GetFinishedRunIndexBlock(),
+                                                                                 seg_builder->GetFinishedRunFilterBlock(),
+                                                                                 seg_builder->GetFinishedRunDataSize(),
+                                                                                 &buf);
+
+            // Update the leaf index entry
+            LeafIndexEntry new_leaf_index_entry;
+            LeafIndexEntryBuilder::AppendMiniRunIndexEntry(leaf_index_entry, new_minirun_index_entry, &buf2,
+                                                           &new_leaf_index_entry);
+
+            assert(leaf_index_entry.GetNumMiniRuns() + 1 == new_leaf_index_entry.GetNumMiniRuns());
+            // Write out the updated entry to leaf index
+            leaf_index_wb.Put(leaf_max_key, new_leaf_index_entry.GetRawData());
+            stat_store_.UpdateLeafNumRuns(leaf_max_key.ToString(), new_leaf_index_entry.GetNumMiniRuns());
+        } else {
+            // Memtable has no keys intersected with this leaf
+            if (leaf_index_entry.Empty()) {
+                // If the leaf became empty due to self-compaction or split, remove it from the leaf index
+                leaf_index_wb.Delete(leaf_max_key);
+                --(state.leaf_change_num_);
+                stat_store_.DeleteLeaf(leaf_max_key.ToString());
+                //fprintf(stderr, "Deleted index entry for empty leaf of key %s\n", leaf_max_key.ToString().c_str());
+            }
+        }
+
+    } else {
+        // create new leaf and process
+        // Memtable has keys that are greater than all the keys in leaf_index_.
+        // In this case, partition the rest of memtable contents into leaves each no more than options_.leaf_datasize_thresh bytes in size.
+        while (s.ok() && mit->Valid()) {
+            std::string buf, buf2;
+            
+            SegmentBuilder *seg_builder = nullptr;
+            bool switched_segment = false;
+            s = grouped_segment_appender.MakeRoomForGroupAndGetBuilder(0, &seg_builder, switched_segment);
+            if (!s.ok()) {
+                return ;
+            }
+            
+            if (switched_segment && leaf_index_wb.ApproximateSize() > kLeafIndexWriteBufferMaxSize) {
+                // If all previous segments are built successfully and
+                // the leaf_index write buffer exceeds the threshold,
+                // write it down to leaf_index_ to keep the memory footprint small.
+                s = leaf_index_->Write({}, &leaf_index_wb);
+                if (!s.ok())
+                    return;
+                leaf_index_wb.Clear();
+            }
+            
+            uint32_t seg_id = seg_builder->SegmentId();
+            
+            assert(seg_builder->RunStarted() == false);
+            
+            s = seg_builder->StartMiniRun();
+            if (!s.ok()) {
+                fprintf(stderr, "%s",s.ToString().c_str());
+                return ;
+            }
+            
+            size_t bytes = 0;
+            int minirun_key_cnt = 0;
+
+            Slice leaf_max_key;
+            
+            while (mit->Valid()) {
+                Slice imm_internal_key = mit->key();
+                ParsedInternalKey parsed_internal_key;
+                if (!ParseInternalKey(mit->key(), &parsed_internal_key)) {
+                    s = Status::InvalidArgument("error parsing key from immutable table during compaction");
+                    fprintf(stderr, "%s", s.ToString().c_str());
+                    return ;
+                }
+                
+                // A leaf holds at least one key-value pair and at most options_.leaf_datasize_thresh bytes of data.
+                if (minirun_key_cnt > 0 &&
+                        bytes + imm_internal_key.size() + mit->value().size() >= options_.leaf_datasize_thresh * 0.05) {
+                            break;
+                }
+                
+                bytes += imm_internal_key.size() + mit->value().size();
+                
+                leaf_max_key = parsed_internal_key.user_key;
+                seg_builder->Add(imm_internal_key, mit->value());
+                // Reading data from memtable costs no read io.
+                // Record the write to segment.
+                state.written_ += (mit->key().size() + mit->value().size());
+                ++minirun_key_cnt;
+                mit->Next();
+            }
+            
+            uint32_t run_no;
+            seg_builder->FinishMiniRun(&run_no);
+            assert(seg_builder->GetFinishedRunDataSize());
+            // Generate an index entry for the new minirun
+            MiniRunIndexEntry minirun_index_entry = MiniRunIndexEntry::Build(seg_id, run_no,
+                                                                        seg_builder->GetFinishedRunIndexBlock(),
+                                                                        seg_builder->GetFinishedRunFilterBlock(),
+                                                                        seg_builder->GetFinishedRunDataSize(),
+                                                                        &buf);
+            LeafIndexEntry new_leaf_index_entry;
+            LeafIndexEntryBuilder::AppendMiniRunIndexEntry(LeafIndexEntry{}, minirun_index_entry, &buf2,
+                                                       &new_leaf_index_entry);
+            leaf_index_wb.Put(leaf_max_key, new_leaf_index_entry.GetRawData());
+            ++(state.leaf_change_num_);
+            stat_store_.NewLeaf(leaf_max_key.ToString());
+            stat_store_.UpdateWriteHotness(leaf_max_key.ToString(), minirun_key_cnt);
+        }
+    }
+ }
+
+ void SilkStore::ProcessCompactionSubTasks(int tid) {
+    GroupedSegmentAppender grouped_segment_appender(1, segment_manager_, options_);
+
+    for (size_t i = 0; i < sub_compact_tasks_.size(); ++i) {
+        if (tid == (i % compact_num_threads_)) {
+            ProcessKeyValueCompaction(sub_compact_tasks_[i], compact_subtask_states_[tid], grouped_segment_appender);
+            // failed compaction
+            if (!compact_subtask_states_[tid].s_.ok()) {
+                break;
+            }
+        }
+    }
+}
+
+void SilkStore::RunCompactionTasks() {
+
+    // Launch a thread for each of subcompactions 1...num_threads-1
+    std::vector<std::thread> thread_pool;
+    thread_pool.reserve(compact_num_threads_-1);
+
+    for (size_t i = 1; i < compact_num_threads_; ++i) {
+        thread_pool.emplace_back(&SilkStore::ProcessCompactionSubTasks, this, i);
+    }
+
+    // Always schedule the first subcompaction (whether or not there are also
+    // others) in the current thread to be efficient with resources
+    ProcessCompactionSubTasks(0);
+    
+    // Wait for all other threads (if there are any) to finish execution
+    for (auto& thread : thread_pool) {
+        thread.join();
+    }
+}
+
+Status SilkStore::FinishCompactionTasks() {
+
+    DeferCode c([this]() {
+        sub_compact_tasks_.clear();
+        compact_subtask_states_.clear();
+        boundries_.clear();
+        leaf_values_.clear();
+    });
+
+    for (auto &state : compact_subtask_states_) {
+        if (!state.s_.ok()) {
+            return state.s_;
+        }
+
+        // Record the read and write
+        stats_.Add(state.read_, state.written_);
+        // Record the change of leaf num
+        num_leaves += state.leaf_change_num_;
+
+        if (state.leaf_index_wb_.ApproximateSize()) {
+            Status s = leaf_index_->Write({}, &(state.leaf_index_wb_));
+            if (!s.ok())
+                return s;
+            state.leaf_index_wb_.Clear();
+        }
+    }
+    return Status();
+}
+
+/* Discard: we should not use this version
 Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
+    mutex_.Unlock();
+    DeferCode c([this]() {
+        mutex_.Lock();
+    });
+
+    PrepareCompactionTasks();
+    RunCompactionTasks();
+    Status s = FinishCompactionTasks();
+
+    if (s.ok()) {
+        ++num_compactions;
+    }
+
+    return s;
+}
+*/
+
+
+Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
+        Log(options_.info_log, "DoCompactionWork start\n");
     mutex_.Unlock();
     ReadOptions ro;
     ro.snapshot = leaf_index_->GetSnapshot();
@@ -1615,7 +2278,7 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
         assert(seg_builder->RunStarted() == false);
         s = seg_builder->StartMiniRun();
         if (!s.ok()) {
-            fprintf(stderr,"%s", s.ToString().c_str());
+            fprintf(stderr,  "%s",s.ToString().c_str());
             return s;
         }
         size_t bytes = 0;
@@ -1625,7 +2288,7 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
             ParsedInternalKey parsed_internal_key;
             if (!ParseInternalKey(mit->key(), &parsed_internal_key)) {
                 s = Status::InvalidArgument("error parsing key from immutable table during compaction");
-                fprintf(stderr,"%s", s.ToString().c_str());
+                fprintf(stderr, "%s", s.ToString().c_str());
                 return s;
             }
             // A leaf holds at least one key-value pair and at most options_.leaf_datasize_thresh bytes of data.
@@ -1661,9 +2324,11 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
         stat_store_.NewLeaf(leaf_max_key.ToString());
         stat_store_.UpdateWriteHotness(leaf_max_key.ToString(), minirun_key_cnt);
     }
-    //fprintf(stderr, "Background compaction finished, last segment %d\n", seg_id);
-    //fprintf(stderr, "avg runsize %d, self compactions %d, num_splits %d, num_leaves %d, memtable size %lu, segments size %lu\n", imm_->ApproximateMemoryUsage() / num_leaves_snap, self_compaction, num_splits, num_leaves_snap, imm_->ApproximateMemoryUsage(), segment_manager_->ApproximateSize());
+//    fprintf(stderr, "Background compaction finished, last segment %d\n", seg_id);
+//    fprintf(stderr, "avg runsize %d, self compactions %d, num_splits %d, num_leaves %d, memtable size %lu, segments size %lu\n", imm_->ApproximateMemoryUsage() / num_leaves_snap, self_compaction, num_splits, num_leaves_snap, imm_->ApproximateMemoryUsage(), segment_manager_->ApproximateSize());
     ++num_compactions;
+//        Log(options_.info_log, "Background compaction finished, last segment %d\n", seg_id);
+    Log(options_.info_log, "avg runsize %ld, self compactions %d, num_splits %d, num_leaves %d, memtable size %lu, segments size %lu\n", imm_->ApproximateMemoryUsage() / num_leaves_snap, self_compaction, num_splits, num_leaves_snap, imm_->ApproximateMemoryUsage(), segment_manager_->ApproximateSize());
     return s;
 }
 
@@ -1675,18 +2340,32 @@ void SilkStore::BackgroundCompaction() {
     mutex_.Unlock();
     Status s;
     bool full_compacted = false;
+
+    //Log(options_.info_log,"check gc %lu %lu\n", segment_manager_->ApproximateSize(), options_.maximum_segments_storage_size);
+    // todo GC can cause deadlock: gc is ongoing and optimization_leaf is waiting for gc_mutex, and at that time memtable is full.
     while (options_.maximum_segments_storage_size && segment_manager_->ApproximateSize() >=
                                                      options_.segments_storage_size_gc_threshold *
                                                      options_.maximum_segments_storage_size && s.ok()) {
+        //Log(options_.info_log, "start gc %lu %lu\n", segment_manager_->ApproximateSize(), options_.maximum_segments_storage_size);
         auto t_start_gc = env_->NowMicros();
         if (this->GarbageCollect() == 0) {
             // Do a full compaction to release space
-            fprintf(stderr, "full compaction\n");
+            Log(options_.info_log, "full compaction\n");
             mutex_.Lock();
             s = MakeRoomInLeafLayer(true);
             mutex_.Unlock();
             full_compacted = true;
+            // todo 自适应调整gc阈值
+            if ( options_.maximum_segments_storage_size && segment_manager_->ApproximateSize() >=
+                                                           options_.segments_storage_size_gc_threshold *
+                                                           options_.maximum_segments_storage_size) {
+                size_t cur_stoage_size = segment_manager_->ApproximateSize();
+                options_.maximum_segments_storage_size = cur_stoage_size +  cur_stoage_size * (1 - options_.segments_storage_size_gc_threshold + 0.2);
+            }
         }
+
+        //Log(options_.info_log, "end gc\n");
+
         stats_.AddTimeGC(env_->NowMicros() - t_start_gc);
     }
     mutex_.Lock();

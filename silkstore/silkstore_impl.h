@@ -107,7 +107,8 @@ private:
     Env *const env_;
     const InternalKeyComparator internal_comparator_;
     const InternalFilterPolicy internal_filter_policy_;
-    const Options options_;  // options_.comparator == &internal_comparator_
+    //const Options options_;  // options_.comparator == &internal_comparator_
+    Options options_;
     const bool owns_info_log_;
     const bool owns_cache_;
     const std::string dbname_;
@@ -151,6 +152,12 @@ private:
 
     // Has a background compaction been scheduled or is running?
     bool background_compaction_scheduled_ GUARDED_BY(mutex_);
+
+    // =====================================================================
+    port::Mutex leaf_op_mutex_;
+    bool background_leaf_optimization_scheduled_ GUARDED_BY(leaf_op_mutex_);
+    port::CondVar background_leaf_op_finished_signal_ GUARDED_BY(leaf_op_mutex_);
+    // =====================================================================
 
     std::function<void()> leaf_optimization_func_;
     // Information for a manual compaction
@@ -275,6 +282,99 @@ private:
             time_spent_gc += t;
         }
     } stats_;
+
+    // parallel compaction
+    // Maintains state for each sub-compaction
+    struct SubCompaction {
+        std::string *start_, *end_;
+        std::string *value_;
+        
+        SubCompaction():start_(nullptr), 
+                        end_(nullptr), 
+                        value_(nullptr) {}
+        SubCompaction(std::string *start, std::string *end, std::string *value): start_(start),
+                                                end_(end),
+                                                value_(value) {}
+    };
+
+    struct CompactSubTaskState {
+        size_t read_ = 0;
+        size_t written_ = 0;
+        int32_t leaf_change_num_ = 0;
+        Status s_;
+        WriteBatch leaf_index_wb_;
+    };
+
+    size_t compact_num_threads_ = 2;
+
+    // Stores the boundaries for each subcompaction
+    // subcompaction states are stored in order of increasing key-range
+    std::vector<SubCompaction> sub_compact_tasks_;
+
+    std::vector<CompactSubTaskState> compact_subtask_states_;
+
+    // the max key of each leaf_index_entry
+    std::vector<std::string> boundries_;
+    // the value of each leaf_index_entry
+    std::vector<std::string> leaf_values_;
+
+    // It adds the max key and value of each leaf_index_entry
+    // Then it is uesd to divides immutable to sum groups.
+    void GenSubcompactionBoundaries();
+
+    // prepare subtasks for multiple threads
+    void PrepareCompactionTasks();
+
+    // Launch threads for each subcompaction and wait for them to finish.
+    void RunCompactionTasks();
+
+    // Assign tasks to threads
+    void ProcessCompactionSubTasks(int tid);
+
+    // Iterate through immutable and compact the kv-pairs.
+    void ProcessKeyValueCompaction(SubCompaction &sub_compact, CompactSubTaskState &state, GroupedSegmentAppender &grouped_segment_appender);
+
+    Status FinishCompactionTasks();
+
+    // parallel make room for leaf layer
+    // mainly responsible for split leaf
+    struct SingleLeaf {
+        std::string max_key_;
+        std::string value_;
+
+        SingleLeaf():max_key_(""),
+                        value_("") {}
+        SingleLeaf(std::string max_key, std::string value): max_key_(max_key), value_(value) {}
+    };
+
+    struct SplitLeafTaskState {
+        size_t read_ = 0;
+        size_t written_ = 0;
+        int32_t leaf_change_num_ = 0;
+        Status s_;
+        WriteBatch leaf_index_wb_;
+    };
+
+    size_t split_leaf_num_threads_ = 4;
+
+    // the leafs need split
+    std::vector<SingleLeaf> leafs_need_split;
+    std::vector<SplitLeafTaskState> split_subtask_states_;
+    // prepare the leafs need split
+    void PrepareLeafsNeedSplit(bool force);
+    // launch threads for each subcompaction and wait for them to finish.
+    void RunSplitLeafTasks();
+
+    // Assign tasks to threads
+    void ProcessSplitLeafSubTasks(int tid);
+
+    // do split leaf work
+    void ProcessOneLeaf(SingleLeaf &leaf,
+                        SplitLeafTaskState &state,
+                        GroupedSegmentAppender &grouped_segment_appender);
+    // finish all tasks and aggregate
+    Status FinishSplitLeafTasks();
+
 };
 
 Status DestroyDB(const std::string &dbname, const Options &options);

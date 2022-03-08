@@ -372,6 +372,7 @@ Status LeafStore::Get(const ReadOptions &options, const LookupKey &key, std::str
     it->Seek(key.user_key());
     if (it->Valid() == false)
         return Status::NotFound("");
+    // todo Can get old data that contains a segment which has been deleted.
     Slice index_data = it->value();
     Status s;
     Status key_status = Status::NotFound("");
@@ -388,6 +389,7 @@ Status LeafStore::Get(const ReadOptions &options, const LookupKey &key, std::str
         }
         uint32_t seg_no = minirun_index_entry.GetSegmentNumber();
         Segment *seg = nullptr;
+        // todo  It must be terrible when GC delete this segment before open it.
         s = seg_manager_->OpenSegment(seg_no, &seg);
         if (!s.ok())
             return true;
@@ -399,6 +401,7 @@ Status LeafStore::Get(const ReadOptions &options, const LookupKey &key, std::str
         s = seg->OpenMiniRun(run_no, index_block, &run);
         if (!s.ok())
             return true;
+        DeferCode c3([run]() { delete run; }); // todo fix memory leak: new run but not delelte
 
         std::unique_ptr<Iterator> iter(run->NewIterator(options));
         iter->Seek(key.internal_key());

@@ -226,7 +226,7 @@ public:
 
     void UpdateReadHotness() {
         MutexLock g(&lock);
-        for (auto & kv : m) {
+        for (auto &kv : m) {
             UpdateReadHotnessForOneLeaf(kv.second);
         }
     }
