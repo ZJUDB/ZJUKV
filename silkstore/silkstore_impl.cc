@@ -102,6 +102,7 @@ SilkStore::SilkStore(const Options &raw_options, const std::string &dbname)
           background_leaf_op_finished_signal_(&leaf_op_mutex_),
           background_leaf_optimization_scheduled_(false),
           manual_compaction_(nullptr) {
+    nvm_manager_ = new NvmManager(raw_options.nvmemtable_file, raw_options.nvmemtable_size);                             
     has_imm_.Release_Store(nullptr);
 }
 
@@ -169,7 +170,7 @@ static std::string LogFileName(const std::string &dbname, uint64_t number) {
 static std::string CurrentFilename(const std::string &dbname) {
     return dbname + "/" + kCURRENTFilename;
 }
-
+/* 
 Status SilkStore::RecoverLogFile(uint64_t log_number, SequenceNumber *max_sequence) {
     struct LogReporter : public log::Reader::Reporter {
         Env *env;
@@ -204,8 +205,8 @@ Status SilkStore::RecoverLogFile(uint64_t log_number, SequenceNumber *max_sequen
     // paranoid_checks==false so that corruptions cause entire commits
     // to be skipped instead of propagating bad information (like overly
     // large sequence numbers).
-    log::Reader reader(file, &reporter, true/*checksum*/,
-                       0/*initial_offset*/);
+    log::Reader reader(file, &reporter, true,
+                       0);
     Log(options_.info_log, "Recovering log #%llu",
         (unsigned long long) log_number);
 
@@ -214,7 +215,7 @@ Status SilkStore::RecoverLogFile(uint64_t log_number, SequenceNumber *max_sequen
     Slice record;
     WriteBatch batch;
     int compactions = 0;
-    MemTable *mem = nullptr;
+    NvmemTable *mem = nullptr;
     while (reader.ReadRecord(&record, &scratch) &&
            status.ok()) {
         if (record.size() < 12) {
@@ -271,6 +272,117 @@ Status SilkStore::RecoverLogFile(uint64_t log_number, SequenceNumber *max_sequen
 
     return status;
 }
+ */
+
+
+Status SilkStore::RecoverNvmemtable(uint64_t log_number, SequenceNumber *max_sequence){
+   // std::cout << "RecoverNvmemtable\n";
+    struct LogReporter : public log::Reader::Reporter {
+        Env *env;
+        Logger *info_log;
+        const char *fname;
+        Status *status;  // null if options_.paranoid_checks==false
+        virtual void Corruption(size_t bytes, const Status &s) {
+            Log(info_log, "%s%s: dropping %d bytes; %s",
+                (this->status == nullptr ? "(ignoring error) " : ""),
+                fname, static_cast<int>(bytes), s.ToString().c_str());
+            if (this->status != nullptr && this->status->ok()) *this->status = s;
+        }
+    };
+
+    // Open the log file
+    std::string fname = LogFileName(dbname_, log_number);
+    SequentialFile *file;
+    Status status = env_->NewSequentialFile(fname, &file);
+    if (!status.ok()) {
+        return status;
+    }
+
+    // Create the log reader.
+    LogReporter reporter;
+    reporter.env = env_;
+    reporter.info_log = options_.info_log;
+    reporter.fname = fname.c_str();
+    reporter.status = (options_.paranoid_checks ? &status : nullptr);
+    // We intentionally make log::Reader do checksumming even if
+    // paranoid_checks==false so that corruptions cause entire commits
+    // to be skipped instead of propagating bad information (like overly
+    // large sequence numbers).
+    log::Reader reader(file, &reporter, true/*checksum*/,
+                       0/*initial_offset*/);
+    Log(options_.info_log, "Recovering log #%llu",
+        (unsigned long long) log_number);
+
+    // Read the log records 
+    std::string scratch;
+    Slice record;
+    WriteBatch batch;
+    int compactions = 0;
+    NvmemTable *mem = nullptr;
+
+    if (reader.ReadRecord(&record, &scratch)){
+        if (record.size() < 12) {
+            reporter.Corruption(
+                    record.size(), Status::Corruption("log record too small"));
+
+            fprintf(stderr,"RecoverMemtable Corruption log record too small\n");
+        }
+    }
+    
+    // split record into string numbers
+    std::string rec = record.ToString();
+    std::string delimiter = ",";
+    std::vector<size_t> records;
+    size_t pos;
+    while ((pos = rec.find(delimiter)) != std::string::npos) {
+        records.push_back(std::stoll(rec.substr(0, pos)) );
+        rec.erase(0, pos + delimiter.length());
+    }
+   
+
+    if (records.size() < 3 || records.size() % 2 != 1){
+        fprintf(stderr,"RecoverMemtable Corruption\n");
+        //printf("RecoverMemtable Corruption \n");
+        std::cout<< "records.size:" << records.size() << " ";
+        for(auto it: records){
+            std::cout << it << " ";
+        }
+        std::cout << " \n";
+        return Status::NotSupported("RecoverMemtable");
+    }
+    // recovery nvm_manager_
+    nvm_manager_->recovery(records);
+    
+    // recovery memtable;    
+    int len = records.size() - 1;
+    mem_ = new NvmemTable(internal_comparator_,
+            nullptr, nvm_manager_->reallocate(records[len-1], records[len]) );
+
+    SequenceNumber last_seq;
+    mem_->Recovery(last_seq);
+    mem_->Ref();
+    
+    if (last_seq > *max_sequence) {
+            *max_sequence = last_seq;
+    }    
+    
+    // recovery imm memtable;        
+    if (records.size() > 3){
+        for(int i = len - 2; i >= 1; i -= 2){
+            NvmemTable * imm = new NvmemTable(internal_comparator_,
+                nullptr, nvm_manager_->reallocate(records[i-1], records[i]) );
+            imm->Recovery(last_seq);
+            if (last_seq > *max_sequence) {
+                *max_sequence = last_seq;
+            }   
+            imm->Ref();
+          //  imm_.push_back(imm);
+        }    
+    }
+    //std::cout <<"max_sequence " <<*max_sequence<< "\n";
+    delete file;
+    return Status::OK();
+} 
 
 Status SilkStore::Recover() {
     MutexLock g(&mutex_);
@@ -294,7 +406,8 @@ Status SilkStore::Recover() {
     s = ReadFileToString(env_, CurrentFilename(dbname_), &current_content);
     if (s.IsNotFound()) {
         // new db
-        mem_ = new MemTable(internal_comparator_);
+        mem_ = new NvmemTable(internal_comparator_, nullptr,
+                        nvm_manager_->allocate( 100 * MB));
         mem_->Ref();
         SequenceNumber log_start_seq_num = max_sequence_ = 1;
         WritableFile *lfile = nullptr;
@@ -307,6 +420,18 @@ Status SilkStore::Recover() {
         s = WriteStringToFile(env_, std::to_string(log_start_seq_num), temp_current);
         if (!s.ok()) return s;
         s = env_->RenameFile(temp_current, CurrentFilename(dbname_));
+
+        // modified by yunxiao to record nvm info
+        Status status = log_->AddRecord(nvm_manager_->getNvmInfo());
+        if (!status.ok()) {
+            printf("logfile_->Sync() Error \n");
+            return Status::NotSupported("logfile_->Sync() Error"); 
+         }
+        status = logfile_->Sync();
+        if (!status.ok()) {
+            printf("logfile_->Sync() Error \n");
+            return Status::NotSupported("logfile_->Sync() Error");
+        } 
     } else {
         Iterator *it = leaf_index_->NewIterator(ReadOptions{});
         DeferCode c([it]() { delete it; });
@@ -320,11 +445,11 @@ Status SilkStore::Recover() {
         size_t new_memtable_capacity_ = (allowed_num_leaves + 1) * options_.storage_block_size; // todo 怎么设置合理
         memtable_capacity_ = new_memtable_capacity_ > memtable_capacity_ ? new_memtable_capacity_ : memtable_capacity_;
         SequenceNumber log_start_seq_num = std::stoi(current_content);
-        s = RecoverLogFile(log_start_seq_num, &max_sequence_);
+        s = RecoverNvmemtable(log_start_seq_num, &max_sequence_);
     }
     if (!s.ok())
         return s;
-
+ 
     leaf_optimization_func_ = [this]() {
 
         this->OptimizeLeaf();
@@ -345,8 +470,11 @@ Status SilkStore::Recover() {
     leaf_op_mutex_.Lock();
     background_leaf_optimization_scheduled_ = true;
     env_->ScheduleDelayedTask(leaf_optimization_func_, LeafStatStore::read_interval_in_micros);
+
+    
     return s;
 }
+
 
 Status SilkStore::TEST_CompactMemTable() {
     // nullptr batch means just wait for earlier writes to be done
@@ -378,10 +506,10 @@ namespace {
 
     struct IterState {
         port::Mutex* const mu;
-        MemTable* const mem GUARDED_BY(mu);
-        MemTable* const imm GUARDED_BY(mu);
+        NvmemTable* const mem GUARDED_BY(mu);
+        NvmemTable* const imm GUARDED_BY(mu);
 
-        IterState(port::Mutex* mutex, MemTable* mem, MemTable* imm)
+        IterState(port::Mutex* mutex, NvmemTable* mem, NvmemTable* imm)
                 : mu(mutex), mem(mem), imm(imm) { }
     };
 
@@ -472,7 +600,21 @@ Status SilkStore::MakeRoomForWrite(bool force) {
                 dynamic_filter = NewDynamicFilterBloom(new_memtable_capacity_num_entries,
                                                        options_.memtable_dynamic_filter_fp_rate);
             }
-            mem_ = new MemTable(internal_comparator_, dynamic_filter);
+            //mem_ = new MemTable(internal_comparator_, dynamic_filter);
+            // TODO Opt nvm's alllocate
+            mem_ = new NvmemTable(internal_comparator_, dynamic_filter,
+                        nvm_manager_->allocate( new_memtable_capacity + 4*MB));
+            Status status = log_->AddRecord(nvm_manager_->getNvmInfo());
+            if (!status.ok()) {
+                printf("logfile_->Sync() Error \n");
+                assert(false) ;
+            }
+            status = logfile_->Sync();
+            if (!status.ok()) {
+                printf("logfile_->Sync() Error \n");
+                assert(false) ;
+            }
+            
             mem_->Ref();
             force = false;   // Do not force another compaction if have room
             MaybeScheduleCompaction();
@@ -555,7 +697,24 @@ Status SilkStore::Write(const WriteOptions &options, WriteBatch *my_batch) {
     Status status = MakeRoomForWrite(my_batch == nullptr);
     uint64_t last_sequence = max_sequence_;
     Writer *last_writer = &w;
+
+    // Logless write
     if (status.ok() && my_batch != nullptr) {  // nullptr batch is for compactions
+        WriteBatch *updates = BuildBatchGroup(&last_writer);
+        WriteBatchInternal::SetSequence(updates, last_sequence + 1);
+        size_t nums =  WriteBatchInternal::Count(updates);
+        last_sequence += nums;
+        {
+            mutex_.Unlock();
+            status = WriteBatchInternal::InsertInto(updates, mem_);
+            mem_->AddCounter(nums);
+            mutex_.Lock();
+        }
+        if (updates == tmp_batch_) tmp_batch_->Clear();
+
+        max_sequence_ = last_sequence;
+    }
+    /* if (status.ok() && my_batch != nullptr) {  // nullptr batch is for compactions
         WriteBatch *updates = BuildBatchGroup(&last_writer);
         WriteBatchInternal::SetSequence(updates, last_sequence + 1);
         last_sequence += WriteBatchInternal::Count(updates);
@@ -589,7 +748,7 @@ Status SilkStore::Write(const WriteOptions &options, WriteBatch *my_batch) {
         if (updates == tmp_batch_) tmp_batch_->Clear();
 
         max_sequence_ = last_sequence;
-    }
+    } */
 
     while (true) {
         Writer *ready = writers_.front();
@@ -714,8 +873,8 @@ Status SilkStore::Get(const ReadOptions &options,
         snapshot = max_sequence_;
     }
     //fprintf(stderr, "Get key: %s, seqnum: %u\n", key.ToString().c_str(), snapshot);
-    MemTable *mem = mem_;
-    MemTable *imm = imm_;
+    NvmemTable *mem = mem_;
+    NvmemTable *imm = imm_;
     mem->Ref();
     if (imm != nullptr) imm->Ref();
 
@@ -1162,7 +1321,8 @@ int SilkStore::GarbageCollect() {
     for (auto seg: candidates) {
         segment_manager_->RemoveSegment(seg->SegmentId());
     }
-    //Log(options_.info_log, "gc collect %lu\n", candidates.size());
+    printf("gc collect %lu\n", candidates.size());
+    Log(options_.info_log, "gc collect %lu\n", candidates.size());
 
     return candidates.size();
 }
@@ -1280,9 +1440,10 @@ Status SilkStore::OptimizeLeaf() {
         compacted_runs += index_entry.GetNumMiniRuns();
         stat_store_.UpdateLeafNumRuns(*item.leaf_max_key, 1);
     }
-    if (compacted_runs)
+    if (compacted_runs){
         Log(options_.info_log, "Leaf Optimization compacted %d runs\n", compacted_runs);
-//        fprintf(stderr, "Leaf Optimization compacted %d runs\n", compacted_runs);
+        fprintf(stderr, "Leaf Optimization compacted %d runs\n", compacted_runs);
+    }    
     if (seg_builder.get()) {
         return seg_builder->Finish();
     }
@@ -1873,11 +2034,7 @@ void SilkStore::ProcessKeyValueCompaction(SubCompaction &sub_compact,
         }
     }
 
-
-
     if (end != nullptr) {
-       
-
         Slice leaf_max_key(*end);
         Slice leaf_value_slice(*leaf_value);
         LeafIndexEntry leaf_index_entry(leaf_value_slice);
@@ -1912,7 +2069,6 @@ void SilkStore::ProcessKeyValueCompaction(SubCompaction &sub_compact,
             mit->Next();
         }
 
-
         stat_store_.UpdateWriteHotness(leaf_max_key.ToString(), minirun_key_cnt);
 
         std::string buf, buf2;
@@ -1923,7 +2079,6 @@ void SilkStore::ProcessKeyValueCompaction(SubCompaction &sub_compact,
             if (!s.ok()) {
                 return;
             }
-
             // Generate an index entry for the new minirun
             buf.clear();
             MiniRunIndexEntry new_minirun_index_entry = MiniRunIndexEntry::Build(seg_id, run_no,
@@ -1931,7 +2086,6 @@ void SilkStore::ProcessKeyValueCompaction(SubCompaction &sub_compact,
                                                                                  seg_builder->GetFinishedRunFilterBlock(),
                                                                                  seg_builder->GetFinishedRunDataSize(),
                                                                                  &buf);
-
             // Update the leaf index entry
             LeafIndexEntry new_leaf_index_entry;
             LeafIndexEntryBuilder::AppendMiniRunIndexEntry(leaf_index_entry, new_minirun_index_entry, &buf2,
@@ -2084,7 +2238,6 @@ Status SilkStore::FinishCompactionTasks() {
         if (!state.s_.ok()) {
             return state.s_;
         }
-
         // Record the read and write
         stats_.Add(state.read_, state.written_);
         // Record the change of leaf num
@@ -2100,7 +2253,7 @@ Status SilkStore::FinishCompactionTasks() {
     return Status();
 }
 
-/* Discard: we should not use this version
+///* Discard: we should not use this version
 Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
     mutex_.Unlock();
     DeferCode c([this]() {
@@ -2117,9 +2270,9 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
 
     return s;
 }
-*/
 
 
+/* 
 Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
         Log(options_.info_log, "DoCompactionWork start\n");
     mutex_.Unlock();
@@ -2330,7 +2483,7 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
 //        Log(options_.info_log, "Background compaction finished, last segment %d\n", seg_id);
     Log(options_.info_log, "avg runsize %ld, self compactions %d, num_splits %d, num_leaves %d, memtable size %lu, segments size %lu\n", imm_->ApproximateMemoryUsage() / num_leaves_snap, self_compaction, num_splits, num_leaves_snap, imm_->ApproximateMemoryUsage(), segment_manager_->ApproximateSize());
     return s;
-}
+} */
 
 // Perform a merge between leaves and the immutable memtable.
 // Single threaded version.

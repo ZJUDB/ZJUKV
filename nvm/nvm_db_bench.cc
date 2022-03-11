@@ -1,7 +1,7 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
-#include <cmath>
+
 #include <unordered_set>
 #include <sstream>
 #include <sys/types.h>
@@ -11,7 +11,6 @@
 #include "leveldb/db.h"
 #include "leveldb/env.h"
 #include "leveldb/filter_policy.h"
-#include "leveldb/write_batch.h"
 #include "silkstore/silkstore_impl.h"
 #include "port/port.h"
 #include "util/crc32c.h"
@@ -19,6 +18,7 @@
 #include "util/mutexlock.h"
 #include "util/random.h"
 #include "util/testutil.h"
+#include "leveldb/write_batch.h"
 
 // Comma-separated list of operations to run in the specified order
 //   Actual benchmarks:
@@ -44,6 +44,7 @@
 //      sstables    -- Print sstable info
 //      heapprofile -- Dump a heap profile (if supported by this port)
 static const char* FLAGS_benchmarks =
+    //"fillrandom,"
     "fillseq,"
     "fillsync,"
     "fillrandom,"
@@ -51,9 +52,9 @@ static const char* FLAGS_benchmarks =
     //"readrandom,"
     "readrandomsmall,"  // Extra run to allow previous compactions to quiesce
     "readseq,"
-    "readreverse,"
+  //  "readreverse,"
     "compact,"
-  //  "readrandom,"
+    "readrandom,"
     "readseq,"
     "readreverse,"
     "fill100K,"
@@ -61,6 +62,18 @@ static const char* FLAGS_benchmarks =
     "snappycomp,"
     "snappyuncomp,"
     "acquireload,"
+   // "readreverse,"
+   /*
+   "compact,"
+    "readrandom,"
+    "readseq,"
+    "readreverse,"
+    "fill100K,"
+    "crc32c,"
+    "snappycomp,"
+    "snappyuncomp,"
+    "acquireload,"
+    */
     ;
 
 // Number of key/values to place in database
@@ -983,13 +996,13 @@ class Benchmark {
       options.compression = kNoCompression;
       options.enable_leaf_read_opt = FLAGS_enable_leaf_read_opt;
       options.use_memtable_dynamic_filter = FLAGS_enable_memtable_bloom;
+      //options.leaf_index_path = "/mnt/myPMem";
       options.maximum_segments_storage_size = (static_cast<int64_t>(kKeySize + FLAGS_value_size) * FLAGS_table_size) * FLAGS_log_dataset_ratio;
       fprintf(stderr, "maximum_segments_storage_size %lu bytes\n", options.maximum_segments_storage_size);
 
       Status s;
       if (FLAGS_db_type == std::string("silkstore")) {
-         printf("silkstore open\n");
-	 DB::OpenSilkStore(options, FLAGS_db, &db_);
+        DB::OpenSilkStore(options, FLAGS_db, &db_);
       } else {
         DB::Open(options, FLAGS_db, &db_);
       }
@@ -1024,8 +1037,9 @@ class Benchmark {
     std::string msg;
     //db_->GetProperty(std::string(FLAGS_db_type) + ".stats", &msg);
     //thread->stats.AddMessage(msg);
-
+  //  printf("###### NvmWriteBatch ######\n");
     RandomGenerator gen;
+  //  NvmWriteBatch batch;
     WriteBatch batch;
     Status s;
     int64_t bytes = 0;
@@ -1039,6 +1053,7 @@ class Benchmark {
         bytes += value_size_ + strlen(key);
         thread->stats.FinishedSingleOp();
       }
+    //  s = db_->NvmWrite(write_options_, &batch);
       s = db_->Write(write_options_, &batch);
       if (!s.ok()) {
         fprintf(stderr, "put error: %s\n", s.ToString().c_str());
@@ -1422,7 +1437,8 @@ int main(int argc, char** argv) {
   if (FLAGS_db== nullptr) {
       //leveldb::g_env->GetTestDirectory(&default_db_path);
       //default_db_path = "/mnt/900p/dbbench";
-      default_db_path = "/mnt/toshiba/dbbench";
+      default_db_path = "/mnt/toshiba/nvmbench";
+      std::cout << "default_db_path: " << default_db_path << "\n"; 
 //      if (FLAGS_db_type == std::string("silkstore"))
 //          default_db_path += "/silkstore";
 //      else

@@ -11,18 +11,18 @@
 
 #include <deque>
 #include <set>
-
 #include "db/dbformat.h"
 #include "db/log_writer.h"
-#include "db/memtable.h"
 #include "db/snapshot.h"
 #include "leveldb/db.h"
 #include "leveldb/env.h"
 #include "port/port.h"
 #include "port/thread_annotations.h"
-
+#include "db/write_batch_internal.h"
 #include "leaf_store.h"
 #include "segment.h"
+#include "nvm/nvmemtable.h"
+#include "nvm/nvmmanager.h"
 
 namespace leveldb {
 namespace silkstore {
@@ -123,12 +123,15 @@ private:
 
     port::Mutex GCMutex;
 
+    //port::Mutex LeafMutex;
+
     // State below is protected by mutex_
     port::Mutex mutex_;
     port::AtomicPointer shutting_down_;
     port::CondVar background_work_finished_signal_ GUARDED_BY(mutex_);
-    MemTable *mem_;
-    MemTable *imm_ GUARDED_BY(mutex_);  // Memtable being compacted
+    NvmemTable *mem_;
+    NvmemTable *imm_ GUARDED_BY(mutex_);  // Memtable being compacted
+    NvmManager *nvm_manager_;
 
     port::AtomicPointer has_imm_;       // So bg thread can detect non-null imm_
     WritableFile *logfile_;
@@ -206,6 +209,7 @@ private:
     // amount of work to recover recently logged updates.  Any changes to
     // be made to the descriptor are added to *edit.
     Status Recover() EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+    Status RecoverNvmemtable(uint64_t log_number, SequenceNumber *max_sequence) EXCLUSIVE_LOCKS_REQUIRED(mutex_);;
 
     Status RecoverLogFile(uint64_t log_number, SequenceNumber *max_sequence) EXCLUSIVE_LOCKS_REQUIRED(mutex_);;
 

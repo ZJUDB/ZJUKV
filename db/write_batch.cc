@@ -141,6 +141,30 @@ Status WriteBatchInternal::InsertInto(const WriteBatch* b,
   return b->Iterate(&inserter);
 }
 
+
+class NvmemTableInserter : public WriteBatch::Handler {
+ public:
+  SequenceNumber sequence_;
+  NvmemTable* mem_;
+
+  virtual void Put(const Slice& key, const Slice& value) {
+    mem_->Add(sequence_, kTypeValue, key, value);
+    sequence_++;
+  }
+  virtual void Delete(const Slice& key) {
+    mem_->Add(sequence_, kTypeDeletion, key, Slice());
+    sequence_++;
+  }
+};
+
+Status WriteBatchInternal::InsertInto(const WriteBatch* b,
+                                      NvmemTable* memtable) {
+  NvmemTableInserter inserter;
+  inserter.sequence_ = WriteBatchInternal::Sequence(b);
+  inserter.mem_ = memtable;
+  return b->Iterate(&inserter);
+}
+
 void WriteBatchInternal::SetContents(WriteBatch* b, const Slice& contents) {
   assert(contents.size() >= kHeader);
   b->rep_.assign(contents.data(), contents.size());
