@@ -23,7 +23,7 @@
 #include "segment.h"
 #include "nvm/nvmemtable.h"
 #include "nvm/nvmmanager.h"
-
+#include "nvm/nvmleafindex.h"
 namespace leveldb {
 namespace silkstore {
 
