@@ -11,6 +11,7 @@
 #include "leveldb/iterator.h"
 #include "leveldb/options.h"
 #include "nvm/nvmmanager.h"
+#include "nvm/leafindex/leafindex.h"
 #include "port/port.h"
 #include "port/thread_annotations.h"
 
@@ -113,6 +114,7 @@ public:
   // The results may not include the sizes of recently written data.
   virtual void GetApproximateSizes(const Range* range, int n,
                                    uint64_t* sizes) ;
+                                   
 
   // Compact the underlying storage for the key range [*begin,*end].
   // In particular, deleted and overwritten versions are discarded,
@@ -125,23 +127,10 @@ public:
   // Therefore the following call will compact the entire database:
   //    db->CompactRange(nullptr, nullptr);
   virtual void CompactRange(const Slice* begin, const Slice* end) ;
-
-  bool AddCounter(size_t added);
-  bool Recovery();
-  bool AddIndex(Slice key ,uint64_t val);
-
 private:
-
-  friend class NvmLeafIndexIterator;
-
-
   size_t cap_;
-  typedef std::map<std::string,uint64_t> Index;
-  Nvmem *nvmem_;
-  char buf[1024ul*1024ul*16ul];
-  Index *leaf_index_;
-  std::mutex mutex_;
-  size_t counters_;
+  LeafIndex *leaf_index_;
+  port::Mutex mutex_;
 };
 
                  

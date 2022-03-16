@@ -148,7 +148,7 @@ SilkStore::~SilkStore() {
 
 Status SilkStore::OpenIndex(const Options &index_options) {
     assert(leaf_index_ == nullptr);
-    Status s = DB::Open(index_options, dbname_ + "/leaf_index", &leaf_index_);
+    Status s =  NvmLeafIndex::OpenNvmLeafIndex(index_options, dbname_, &leaf_index_);
     return s;
 }
 
@@ -2593,6 +2593,8 @@ Status DestroyDB(const std::string &dbname, const Options &options) {
         }
         env->UnlockFile(lock);  // Ignore error since state is already gone
         env->DeleteFile(lockname);
+        env->DeleteFile(dbname + "/leafindex_recovery");
+        
         env->DeleteDir(dbname);  // Ignore error in case dir contains other files
     }
     return result;

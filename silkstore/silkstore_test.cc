@@ -322,6 +322,8 @@ namespace leveldb {
         }
 
         void DestroyAndReopen(Options* options = nullptr) {
+            printf("DestroyAndReopen\n");
+            
             delete db_;
             db_ = nullptr;
             leveldb::silkstore::DestroyDB(dbname_, Options());
@@ -329,6 +331,8 @@ namespace leveldb {
         }
 
         Status TryReopen(Options* options) {
+            printf("Reopen\n");
+            
             delete db_;
             db_ = nullptr;
             Options opts;

@@ -8,6 +8,7 @@
 #include "db/dbformat.h"
 #include "leveldb/write_batch.h"
 #include "nvm/nvmemtable.h"
+#include "nvm/leafindex/leafindex.h"
 namespace leveldb {
 
 class MemTable;
@@ -41,6 +42,7 @@ class WriteBatchInternal {
 
   static Status InsertInto(const WriteBatch* batch, MemTable* memtable);
   static Status InsertInto(const WriteBatch* batch, NvmemTable* memtable);
+  static Status InsertInto(const WriteBatch* batch, LeafIndex* memtable);
 
   static void Append(WriteBatch* dst, const WriteBatch* src);
 };
