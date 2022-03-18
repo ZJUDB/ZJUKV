@@ -20,11 +20,12 @@ uint64_t Nvmem::Insert(const char* value, int len){
         // ntstoremore(data_ + index_, data_ + index_ + len + 4);
         sfence(); 
         // return data's address on nvm
-        int resIndex = index_;
+        u_int64_t resIndex = index_;
         index_ = index_ + len;
         return u_int64_t(resIndex + data_);
     } 
 }
+
 
 /* // update date into nvm
 void Nvmem::update(uint64_t add ,char* value, int len){

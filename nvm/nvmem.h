@@ -49,6 +49,7 @@ class Nvmem{
         size_t GetCounter();
         uint64_t GetBeginAddress();
         uint64_t Insert(const char *, int);
+        
         void print();
 };
 

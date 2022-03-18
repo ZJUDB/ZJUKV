@@ -217,6 +217,9 @@ void LeafIndex::Add(SequenceNumber s, ValueType type,
   const size_t encoded_len =
       VarintLength(internal_key_size) + internal_key_size +
       VarintLength(val_size) + val_size;
+  if(1024ul*1024ul*16ul <= encoded_len ){
+    std::__throw_runtime_error("1024ul*1024ul*16ul <= encoded_len \n");
+  } 
   char* p = EncodeVarint32(buf, internal_key_size);
   memcpy(p, input_key.data(), key_size);
   p += key_size;
@@ -228,7 +231,8 @@ void LeafIndex::Add(SequenceNumber s, ValueType type,
   assert(p + val_size == buf + encoded_len); 
 //  memcpy(buf + encoded_len, magicNum, 4);
   uint64_t address = nvmem->Insert(buf, encoded_len);
-
+  if(val_size == 56)
+    std::cout<< key.ToString() << " address: " << address << " encoded_len: "<< encoded_len << "\n";
   index_[input_key] = address;
 
   if (dynamic_filter)

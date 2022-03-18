@@ -97,7 +97,7 @@ NvmLeafIndex::~NvmLeafIndex() {
 
 Status NvmLeafIndex::Write(const WriteOptions& options, WriteBatch* my_batch) {
   //throw std::runtime_error("NvmLeafIndex::Write not supported");
-  if (leaf_index_->ApproximateMemoryUsage() > cap_){
+  if (leaf_index_->ApproximateMemoryUsage() > (cap_ - 100 * MB) ){
     throw std::runtime_error("NvmLeafIndex out of memory\n");
   }
   mutex_.Lock();

@@ -1344,7 +1344,7 @@ SilkStore::InvalidateLeafRuns(const LeafIndexEntry &leaf_index_entry, size_t sta
 }
 
 Status SilkStore::OptimizeLeaf() {
-    //Log(options_.info_log, "Updating read hotness for all leaves.");
+    Log(options_.info_log, "Updating read hotness for all leaves.");
     stat_store_.UpdateReadHotness();
 
     if (options_.enable_leaf_read_opt == false)
@@ -1448,6 +1448,7 @@ Status SilkStore::OptimizeLeaf() {
         return seg_builder->Finish();
     }
     if (leaf_index_wb.ApproximateSize()) {
+        std::cout << "OptimizeLeaf \n";
         return leaf_index_->Write(WriteOptions{}, &leaf_index_wb);
     }
 
@@ -2253,7 +2254,9 @@ Status SilkStore::FinishCompactionTasks() {
     return Status();
 }
 
-///* Discard: we should not use this version
+
+/*
+// Discard: we should not use this version
 Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
     mutex_.Unlock();
     DeferCode c([this]() {
@@ -2271,8 +2274,7 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
     return s;
 }
 
-
-/* 
+*/
 Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
         Log(options_.info_log, "DoCompactionWork start\n");
     mutex_.Unlock();
@@ -2483,7 +2485,7 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
 //        Log(options_.info_log, "Background compaction finished, last segment %d\n", seg_id);
     Log(options_.info_log, "avg runsize %ld, self compactions %d, num_splits %d, num_leaves %d, memtable size %lu, segments size %lu\n", imm_->ApproximateMemoryUsage() / num_leaves_snap, self_compaction, num_splits, num_leaves_snap, imm_->ApproximateMemoryUsage(), segment_manager_->ApproximateSize());
     return s;
-} */
+} 
 
 // Perform a merge between leaves and the immutable memtable.
 // Single threaded version.

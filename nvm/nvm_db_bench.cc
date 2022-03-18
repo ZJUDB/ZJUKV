@@ -44,11 +44,17 @@
 //      sstables    -- Print sstable info
 //      heapprofile -- Dump a heap profile (if supported by this port)
 static const char* FLAGS_benchmarks =
-    //"fillrandom,"
-    "fillseq,"
+     "fillseq,"
      "readrandomsmall,"  // Extra run to allow previous compactions to quiesce
-
+     
+    "readseq,"
+     
     "fillrandom,"
+     "readrandomsmall,"  // Extra run to allow previous compactions to quiesce
+    "readseq,"
+    "overwrite,"
+
+   /* "fillrandom,"
      "readrandomsmall,"  // Extra run to allow previous compactions to quiesce
     "overwrite,"
     //"readrandom,"
@@ -59,13 +65,13 @@ static const char* FLAGS_benchmarks =
     "readrandom,"
     "readseq,"
     "readreverse,"
-    "fill100K,"
+    "fill100K," 
     "crc32c,"
     "snappycomp,"
     "snappyuncomp,"
     "acquireload,"
    // "readreverse,"
-   /*
+   
    "compact,"
     "readrandom,"
     "readseq,"
@@ -132,15 +138,16 @@ static bool FLAGS_use_existing_db = false;
 static bool FLAGS_reuse_logs = false;
 
 // Use the db with the following name.
-static const char* FLAGS_db = nullptr;
-
+static const char* FLAGS_db = "./nvmsilkstore_benckmark";
+static int FLAGS_leaf_max_num_miniruns = 7;
+static int FLAGS_memtbl_to_L0_ratio = 30;
 // Test db impl type: leveldb/silkstore
 static const char* FLAGS_db_type = "silkstore";
 
 // Mixed workload spec
 static const char* FLAGS_mixed_wl_spec = nullptr;
 
-static int FLAGS_num_ops_in_mixed_wl = 0;
+static int  FLAGS_num_ops_in_mixed_wl = 0;
 
 static bool FLAGS_enable_leaf_read_opt = false;
 
@@ -591,6 +598,9 @@ class Benchmark {
     fprintf(stdout, "Entries:    %d\n", FLAGS_table_size);
     fprintf(stdout, "Reads:      %d\n", FLAGS_reads);
     fprintf(stdout, "Num:        %d\n", FLAGS_num);
+    fprintf(stdout, "Leaf_max_num_miniruns:  %d\n", FLAGS_leaf_max_num_miniruns);
+    fprintf(stdout, "Memtbl_to_L0_ratio:     %d\n", FLAGS_memtbl_to_L0_ratio);
+    
     fprintf(stdout, "RawSize:    %.1f MB (estimated)\n",
             ((static_cast<int64_t>(kKeySize + FLAGS_value_size) * FLAGS_table_size)
              / 1048576.0));
@@ -989,6 +999,9 @@ class Benchmark {
       options.env = g_env;
       options.create_if_missing = !FLAGS_use_existing_db;
       options.block_cache = cache_;
+      options.nvmemtable_file = "/mnt/NVMSilkstore/nvmemtable";
+      options.leaf_max_num_miniruns = FLAGS_leaf_max_num_miniruns;
+      options.memtbl_to_L0_ratio = FLAGS_memtbl_to_L0_ratio;
       options.write_buffer_size = FLAGS_write_buffer_size;
       options.max_file_size = FLAGS_max_file_size;
       options.block_size = FLAGS_block_size;
