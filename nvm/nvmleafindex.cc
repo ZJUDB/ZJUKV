@@ -133,7 +133,10 @@ Status NvmLeafIndex::Get(const ReadOptions &options,
 
 bool NvmLeafIndex::GetProperty(const Slice& property, std::string* value){
   //throw std::runtime_error("NvmLeafIndex::GetProperty not supported");
-  printf("NvmLeafIndex::GetProperty not supported\n");
+  //printf("NvmLeafIndex::GetProperty not supported\n");
+  char buf[1000];
+  snprintf(buf, sizeof(buf), "\n leafnode nums  %lu\n", leaf_index_->Size() );
+  value->append(buf);
   return true;
 }
 void NvmLeafIndex::GetApproximateSizes(const Range* range, int n, uint64_t* sizes) {

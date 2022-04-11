@@ -191,7 +191,7 @@ void RandomWrite(){
         leveldb::Options options;
         options.create_if_missing = true;
         options.compression = leveldb::kNoCompression;
-        options.enable_leaf_read_opt = true;
+        options.enable_leaf_read_opt = false;
         options.memtbl_to_L0_ratio = 15;
         options.write_buffer_size = 64UL * 1024 * 1024;
         options.leaf_max_num_miniruns = 15;

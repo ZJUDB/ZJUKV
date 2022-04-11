@@ -846,6 +846,7 @@ bool SilkStore::GetProperty(const Slice &property, std::string *value) {
                  stats_.gc_bytes_written,
                  stats_.gc_miniruns_total,
                  stats_.gc_miniruns_queried);
+    
         *value = buf;
         std::string leaf_index_stats;
         leaf_index_->GetProperty("leveldb.stats", &leaf_index_stats);
@@ -1371,6 +1372,7 @@ Status SilkStore::OptimizeLeaf() {
             [this, &candidate_heap](const std::string &leaf_max_key, const LeafStatStore::LeafStat &stat) {
                 double read_hotness = stat.read_hotness;
                 if (stat.num_runs >= options_.leaf_max_num_miniruns / 4 && read_hotness > 0) {
+                 //   std::cout << "read_hotness: " << read_hotness << "\n";
                     if (candidate_heap.size() < kOptimizationK) {
                         candidate_heap.push(HeapItem{read_hotness, std::make_shared<std::string>(leaf_max_key)});
                     } else {
@@ -1393,6 +1395,8 @@ Status SilkStore::OptimizeLeaf() {
         if (!s.ok()) {
             return s;
         }
+    }else{
+        return s;
     }
     WriteBatch leaf_index_wb;
     int compacted_runs = 0;
@@ -1448,7 +1452,7 @@ Status SilkStore::OptimizeLeaf() {
         return seg_builder->Finish();
     }
     if (leaf_index_wb.ApproximateSize()) {
-        std::cout << "OptimizeLeaf \n";
+      //  std::cout << "OptimizeLeaf " << leaf_index_wb.ApproximateSize() << " \n";
         return leaf_index_->Write(WriteOptions{}, &leaf_index_wb);
     }
 
@@ -2276,7 +2280,7 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
 
 */
 Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
-        Log(options_.info_log, "DoCompactionWork start\n");
+    Log(options_.info_log, "DoCompactionWork start\n");
     mutex_.Unlock();
     ReadOptions ro;
     ro.snapshot = leaf_index_->GetSnapshot();
@@ -2305,6 +2309,7 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
     Slice next_leaf_index_value;
     Slice leaf_max_key;
     while (iit->Valid() && mit->Valid() && s.ok()) {
+
         if (next_leaf_max_key.empty()) {
             next_leaf_max_key = iit->key();
             next_leaf_index_value = iit->value();
@@ -2374,28 +2379,31 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
             if (!s.ok()) {
                 return s;
             }
-
             // Generate an index entry for the new minirun
             buf.clear();
-            MiniRunIndexEntry new_minirun_index_entry = MiniRunIndexEntry::Build(seg_id, run_no,
-                                                                                 seg_builder->GetFinishedRunIndexBlock(),
-                                                                                 seg_builder->GetFinishedRunFilterBlock(),
-                                                                                 seg_builder->GetFinishedRunDataSize(),
-                                                                                 &buf);
+            MiniRunIndexEntry new_minirun_index_entry = 
+                                        MiniRunIndexEntry::Build(seg_id, run_no,
+                                        seg_builder->GetFinishedRunIndexBlock(),
+                                        seg_builder->GetFinishedRunFilterBlock(),
+                                        seg_builder->GetFinishedRunDataSize(),
+                                        &buf);
 
             // Update the leaf index entry
             LeafIndexEntry new_leaf_index_entry;
-            LeafIndexEntryBuilder::AppendMiniRunIndexEntry(leaf_index_entry, new_minirun_index_entry, &buf2,
-                                                           &new_leaf_index_entry);
+            LeafIndexEntryBuilder::AppendMiniRunIndexEntry(leaf_index_entry, 
+                            new_minirun_index_entry, &buf2, &new_leaf_index_entry);
 
-            assert(leaf_index_entry.GetNumMiniRuns() + 1 == new_leaf_index_entry.GetNumMiniRuns());
+            assert(leaf_index_entry.GetNumMiniRuns() + 1 == 
+                                            new_leaf_index_entry.GetNumMiniRuns());
             // Write out the updated entry to leaf index
             leaf_index_wb.Put(leaf_max_key, new_leaf_index_entry.GetRawData());
-            stat_store_.UpdateLeafNumRuns(leaf_max_key.ToString(), new_leaf_index_entry.GetNumMiniRuns());
+            stat_store_.UpdateLeafNumRuns(leaf_max_key.ToString(), 
+                                            new_leaf_index_entry.GetNumMiniRuns());
         } else {
             // Memtable has no keys intersected with this leaf
             if (leaf_index_entry.Empty()) {
-                // If the leaf became empty due to self-compaction or split, remove it from the leaf index
+                // If the leaf became empty due to self-compaction or split, 
+                // remove it from the leaf index
                 leaf_index_wb.Delete(leaf_max_key);
                 --num_leaves;
                 stat_store_.DeleteLeaf(leaf_max_key.ToString());
@@ -2496,11 +2504,12 @@ void SilkStore::BackgroundCompaction() {
     Status s;
     bool full_compacted = false;
 
-    //Log(options_.info_log,"check gc %lu %lu\n", segment_manager_->ApproximateSize(), options_.maximum_segments_storage_size);
+    // Log(options_.info_log,"check gc %lu %lu\n", segment_manager_->ApproximateSize(), options_.maximum_segments_storage_size);
     // todo GC can cause deadlock: gc is ongoing and optimization_leaf is waiting for gc_mutex, and at that time memtable is full.
-    while (options_.maximum_segments_storage_size && segment_manager_->ApproximateSize() >=
-                                                     options_.segments_storage_size_gc_threshold *
-                                                     options_.maximum_segments_storage_size && s.ok()) {
+    while (options_.maximum_segments_storage_size 
+                        && segment_manager_->ApproximateSize() >=
+                        options_.segments_storage_size_gc_threshold *
+                        options_.maximum_segments_storage_size && s.ok()) {
         //Log(options_.info_log, "start gc %lu %lu\n", segment_manager_->ApproximateSize(), options_.maximum_segments_storage_size);
         auto t_start_gc = env_->NowMicros();
         if (this->GarbageCollect() == 0) {
@@ -2510,6 +2519,7 @@ void SilkStore::BackgroundCompaction() {
             s = MakeRoomInLeafLayer(true);
             mutex_.Unlock();
             full_compacted = true;
+
             // todo 自适应调整gc阈值
             if ( options_.maximum_segments_storage_size && segment_manager_->ApproximateSize() >=
                                                            options_.segments_storage_size_gc_threshold *

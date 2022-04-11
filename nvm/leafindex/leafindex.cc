@@ -87,7 +87,7 @@ class LeafIndexIterator: public Iterator {
       assert(true);
   }
   virtual Slice key() const {  
-     return GetLengthPrefixedSlice((char *)(iter_->second)); 
+     return iter_->first;//GetLengthPrefixedSlice((char *)(iter_->second)); 
   }
   virtual Slice value() const {
     Slice key_slice = GetLengthPrefixedSlice((char *)(iter_->second));
@@ -148,6 +148,7 @@ Status LeafIndex::Recovery(SequenceNumber& max_sequence){
   uint32_t key_length;
   uint32_t value_length;
   counters_ = counters;
+  std::cout << "Recovery counts: " << counters << "\n";
   if (counters > 0){
     const char* key_ptr = GetVarint32Ptr((char *) (address + offset), 
         (char *) (address + offset + 5), &key_length);
@@ -187,7 +188,7 @@ void LeafIndex::Add(SequenceNumber s, ValueType type,
   //  key bytes    : char[internal_key.size()]
   //  value_size   : varint32 of value.size()
   //  value bytes  : char[value.size()]
-  size_t magic_num = 0xFF12345678FF;
+ /*  size_t magic_num = 0xFF12345678FF;
 
   std::string magic = "12345678";
 
@@ -201,6 +202,8 @@ void LeafIndex::Add(SequenceNumber s, ValueType type,
      // suffix_val = bytesToInt_64(suffix.c_str());
   }
   std::string input_key;
+
+  
   if (suffix == magic){
      //std::cout << "suffix == magic "<< str << " \n " ;
      input_key = str.substr(0, str.length()-8);
@@ -209,8 +212,8 @@ void LeafIndex::Add(SequenceNumber s, ValueType type,
      input_key = key.ToString();
   }
   
+  // std::cout << "seq : " << s <<" input_key : " << input_key << " value: " << value.ToString() << "\n";
 
-  //std::cout << "seq : " << s <<" input_key : " << input_key << " size: " << input_key.size() << "\n";
   size_t key_size = input_key.size();
   size_t val_size = value.size();
   size_t internal_key_size = key_size + 8;
@@ -239,6 +242,32 @@ void LeafIndex::Add(SequenceNumber s, ValueType type,
     dynamic_filter->Add(input_key);
   ++num_entries_;
   // update memory_usage_ to recode nvm's usage size
+  memory_usage_ += encoded_len; */
+  size_t key_size = key.size();
+  size_t val_size = value.size();
+  size_t internal_key_size = key_size + 8;
+  const size_t encoded_len =
+      VarintLength(internal_key_size) + internal_key_size +
+      VarintLength(val_size) + val_size;
+      
+  // std::cout << "seq : " << s <<" input_key  size: " << key_size 
+  //      << " value size: " << val_size << "\n";
+
+  char* p = EncodeVarint32(buf, internal_key_size);
+  memcpy(p, key.data(), key_size);
+  p += key_size;
+  EncodeFixed64(p, (s << 8) | type);
+  p += 8;
+  p = EncodeVarint32(p, val_size);
+  memcpy(p, value.data(), val_size);
+  assert(p + val_size == buf + encoded_len); 
+  uint64_t address = nvmem->Insert(buf, encoded_len);
+  index_[key.ToString()] = address;
+  if (dynamic_filter){
+    dynamic_filter->Add(key);
+  }
+  ++num_entries_;
+  // update memory_usage_ to recode nvm's usage size
   memory_usage_ += encoded_len;
   
   AddCounter(1);
@@ -253,8 +282,8 @@ bool LeafIndex::Get(const LookupKey& key, std::string* value, Status* s) {
   Slice memkey = key.user_key();
   uint64_t address = 0;
   bool suc = index_.count(memkey.ToString());
+  if (suc == true) {
 
-  if (suc) {
    /*  Slice foundkey = NvmGetLengthPrefixedSlice((char *)(address));
     std::cout << "found ! key: "<< foundkey.ToString() <<"\n"; */
     // entry format is:
@@ -277,6 +306,7 @@ bool LeafIndex::Get(const LookupKey& key, std::string* value, Status* s) {
             key.user_key()) == 0) {
       // Correct user key
       const uint64_t tag = DecodeFixed64(key_ptr + key_length - 8);
+      
       switch (static_cast<ValueType>(tag & 0xff)) {
         case kTypeValue: {
           Slice v = GetLengthPrefixedSlice(key_ptr + key_length);
@@ -286,9 +316,11 @@ bool LeafIndex::Get(const LookupKey& key, std::string* value, Status* s) {
         case kTypeDeletion:
           *s = Status::NotFound(Slice());
           return true;
+        default:
+        std::runtime_error(" can't find key type \n");
       }
     }else{
-        std::runtime_error(" can't find key value \n");
+        std::cout<< " can't find key value \n";
     }
   }
   return false;

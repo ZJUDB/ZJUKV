@@ -44,10 +44,15 @@
 //      sstables    -- Print sstable info
 //      heapprofile -- Dump a heap profile (if supported by this port)
 static const char* FLAGS_benchmarks =
-     "fillseq,"
+     "fillrandom,"
+
      "readrandomsmall,"  // Extra run to allow previous compactions to quiesce
      
-    "readseq,"
+     
+     "fillseq,"
+     "readrandom," 
+     "readseq,"
+     
      
     "fillrandom,"
      "readrandomsmall,"  // Extra run to allow previous compactions to quiesce
@@ -85,7 +90,7 @@ static const char* FLAGS_benchmarks =
     ;
 
 // Number of key/values to place in database
-static int FLAGS_num = 100000000;
+static int FLAGS_num = 300000000;
 
 // Number of read operations to do.  If negative, do FLAGS_num reads.
 static int FLAGS_reads = -1;
@@ -139,7 +144,7 @@ static bool FLAGS_reuse_logs = false;
 
 // Use the db with the following name.
 static const char* FLAGS_db = "./nvmsilkstore_benckmark";
-static int FLAGS_leaf_max_num_miniruns = 7;
+static int FLAGS_leaf_max_num_miniruns = 1;
 static int FLAGS_memtbl_to_L0_ratio = 30;
 // Test db impl type: leveldb/silkstore
 static const char* FLAGS_db_type = "silkstore";
@@ -246,6 +251,7 @@ class Stats {
     start_ = g_env->NowMicros();
     finish_ = start_;
     message_.clear();
+    printf("Start bench \n");
   }
 
   void Merge(const Stats& other) {
@@ -261,6 +267,7 @@ class Stats {
   }
 
   void Stop() {
+    printf("Stop \n");
     finish_ = g_env->NowMicros();
     seconds_ = (finish_ - start_) * 1e-6;
   }
@@ -777,7 +784,7 @@ class Benchmark {
       } else if (name == Slice("readhot")) {
         method = &Benchmark::ReadHot;
       } else if (name == Slice("readrandomsmall")) {
-        reads_ /= 1000;
+        reads_ /= 3000;
         method = &Benchmark::ReadRandom;
       } else if (name == Slice("deleteseq")) {
         method = &Benchmark::DeleteSeq;

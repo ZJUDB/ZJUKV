@@ -40,7 +40,7 @@ Options::Options()
       nvmemtable_file("/mnt/NVMSilkstore/nvmem_table"),
       nvmemtable_size(1024ul * 1024ul * 1024ul * 50ul),
       nvmleafindex_file("/mnt/NVMSilkstore/nvmleafindex_table"),
-      nvmleafindex_size(1024ul * 1024ul * 1024ul * 10ul),        
+      nvmleafindex_size(1024ul * 1024ul * 1024ul * 15ul),        
       enable_leaf_read_opt(false),
       maximum_segments_storage_size(0),
       segments_storage_size_gc_threshold(0.9),

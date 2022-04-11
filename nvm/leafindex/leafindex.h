@@ -57,7 +57,9 @@ class LeafIndex {
     }
     return ;
   }
-
+  size_t Size(){
+    return index_.size();
+  }
   // Returns an estimate of the number of bytes of data in use by this
   // data structure. It is safe to call when MemTable is being modified.
   size_t ApproximateMemoryUsage();

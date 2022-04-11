@@ -491,6 +491,75 @@ void IterTest(){
  */
 
 
+void GetBench(){
+
+
+}
+
+
+void IterBench(){
+  
+        leveldb::DB* db_ = nullptr;
+       // leveldb::silkstore::NvmemLeafIndex* db = new NvmemLeafIndex(Options(), nullptr);
+        leveldb::Status s = leveldb::silkstore::NvmLeafIndex::OpenNvmLeafIndex(leveldb::Options(), "", &db_);
+        assert(s.ok()==true);
+        std::cout << " ######### IterBench Test ######## \n";
+        static const int kNumOps = 300000;
+        static const long int kNumKVs = 500000;
+        static const int kValueSize = 36000;
+
+        Random rnd(0);
+        std::vector<std::string> keys(kNumKVs);
+        for (int i = 0; i < kNumKVs; ++i) {
+                keys[i] = RandomNumberKey(&rnd);
+        }
+        //sort(keys.begin(), keys.end());
+        std::map<std::string, std::string> m;
+        std::cout << " ######### Begin Bench Insert Test ######## \n";
+        clock_t startTime,endTime;
+        startTime = clock();
+        leveldb::WriteBatch batch;
+
+        for (int i = 0; i < kNumOps; i++) {
+                std::string key = keys[i % kNumKVs];
+                std::string value = RandomString(&rnd, kValueSize);
+                batch.Clear();
+                batch.Put(key, value);
+                db_->Write(leveldb::WriteOptions(),&batch); 
+        }
+        endTime = clock();
+        std::cout << "The Insert time is: " <<(endTime - startTime) << "\n";
+
+        std::cout << " @@@@@@@@@ PASS #########\n";
+        std::cout << " ######### Begin Bench Get Test ######## \n";
+
+        startTime = clock();
+        for (int i = 0; i < kNumOps; i++) {
+                std::string key = keys[i % kNumKVs];
+                std::string res;
+                s = db_->Get(leveldb::ReadOptions(), key, &res);
+        }
+        endTime = clock();
+        std::cout << "The Get time is: " <<(endTime - startTime) << "\n";
+        std::cout << " @@@@@@@@@ PASS #########\n";
+
+        std::cout << " ######### Begin Bench Iterator Test ######## \n";
+        startTime = clock();        
+        auto it = db_->NewIterator(leveldb::ReadOptions());
+        it->SeekToFirst();
+        while (it->Valid()) {
+            auto res_key = it->key();
+            auto res_value = it->value();
+            
+            it->Next();
+        }
+        endTime = clock();
+        std::cout << "The Iterator time is: " <<(endTime - startTime) << "\n";
+ 
+        std::cout << " @@@@@@@@@ PASS #########\n";
+        delete db_;
+        std::cout << " Delete Open Db \n";
+}
 
 
 void EmptyIter(){
@@ -518,11 +587,14 @@ void EmptyIter(){
 void Recovey(){
         leveldb::DB* db_ = nullptr;
        // leveldb::silkstore::NvmemLeafIndex* db = new NvmemLeafIndex(Options(), nullptr);
+        leveldb::Options ops;
+        ops.nvmleafindex_file = "/mnt/NVMSilkstore/nvm_leaf_test";
+        ops.nvmleafindex_size = 3600 * 400;
         leveldb::Status s = leveldb::silkstore::NvmLeafIndex::OpenNvmLeafIndex(leveldb::Options(), "./nvm_leaf_test", &db_);
         assert(s.ok()==true);
         std::cout << " ######### Recovey Test ######## \n";
         static const int kNumOps = 30;
-        static const long int kNumKVs = 50;
+        static const long int kNumKVs = 100;
         static const int kValueSize = 3600;
 
         Random rnd(0);
@@ -537,8 +609,9 @@ void Recovey(){
         for (int i = 0; i < kNumOps; i++) {
                 std::string key = keys[i % kNumKVs];
                 std::string value = std::to_string(i*10 + 15);//RandomString(&rnd, kValueSize);
-                std::cout<< "insert: " << key << " " << value << "\n";
-                db_->Put(leveldb::WriteOptions(),key, value);
+                std::cout<< "insert: " << key << " value " << value << "\n";
+                batch.Put(key, value);
+                db_->Write(leveldb::WriteOptions(),&batch);
                 m[key] = value;          
                 std::string res;
                 s = db_->Get(leveldb::ReadOptions(), key, &res);
@@ -561,9 +634,10 @@ void Recovey(){
             auto res_key = it->key();
             auto res_value = it->value();
             it->Next();
-            std::cout << "res_key: " << res_key.ToString() << " res_value: " << res_value.ToString() << "\n";
+            //std::cout << "res_key: " << res_key.ToString() << " res_value: " << res_value.ToString() << "\n";
             count++;
         }
+        std::cout << "kNumOps: " << kNumOps << " count " << count <<"\n";
 
 }
 
