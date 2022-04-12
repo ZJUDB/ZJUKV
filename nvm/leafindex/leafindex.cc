@@ -16,7 +16,7 @@ namespace leveldb {
 static Slice GetLengthPrefixedSlice(const char *data) {
   uint32_t len;
   const char *p = data;
-  p = GetVarint32Ptr(p, p + 5, &len); // +5: we assume "p" is not corrupted
+  p = GetVarint32Ptr(p, p + 5, &len);  // +5: we assume "p" is not corrupted
   return Slice(p, len);
 }
 
@@ -60,7 +60,7 @@ static const char *EncodeKey(std::string *scratch, const Slice &target) {
   return scratch->data();
 }
 class LeafIndexIterator : public Iterator {
-public:
+   public:
   explicit LeafIndexIterator(LeafIndex::Index *index) : index(index) {
     iter_ = index->begin();
   }

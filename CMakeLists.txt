@@ -492,6 +492,31 @@ else()
     message(STATUS "BusTub/main found clang-format at ${CLANG_FORMAT_BIN}")
 endif()
 
+# clang-tidy
+if (NOT DEFINED CLANG_TIDY_BIN)
+    # attempt to find the binary if user did not specify
+    find_program(CLANG_TIDY_BIN
+            NAMES clang-tidy clang-tidy-8
+            HINTS ${BUSTUB_CLANG_SEARCH_PATH})
+endif()
+if ("${CLANG_TIDY_BIN}" STREQUAL "CLANG_TIDY_BIN-NOTFOUND")
+    message(WARNING "BusTub/main couldn't find clang-tidy.")
+else()
+    # Output compile_commands.json
+    set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+    message(STATUS "BusTub/main found clang-tidy at ${CLANG_TIDY_BIN}")
+endif()
+
+# cpplint
+find_program(CPPLINT_BIN
+        NAMES cpplint cpplint.py
+        HINTS "${BUSTUB_BUILD_SUPPORT_DIR}")
+if ("${CPPLINT_BIN}" STREQUAL "CPPLINT_BIN-NOTFOUND")
+    message(WARNING "BusTub/main couldn't find cpplint.")
+else()
+    message(STATUS "BusTub/main found cpplint at ${CPPLINT_BIN}")
+endif()
+
 ######################################################################################################################
 # MAKE TARGETS
 ######################################################################################################################
@@ -529,4 +554,48 @@ add_custom_target(check-format ${BUSTUB_BUILD_SUPPORT_DIR}/run_clang_format.py
         ${BUSTUB_FORMAT_DIRS}
         --quiet
         )
+
+
+        
+##########################################
+# "make check-lint"
+##########################################
+
+file(GLOB_RECURSE BUSTUB_LINT_FILES
+# "${PROJECT_SOURCE_DIR}/db/*.h"
+# "${PROJECT_SOURCE_DIR}/include/*.h"
+# "${PROJECT_SOURCE_DIR}/nvm/*.h"
+# "${PROJECT_SOURCE_DIR}/silkstore/*.h"
+# "${PROJECT_SOURCE_DIR}/helpers/*.h"
+# "${PROJECT_SOURCE_DIR}/util/*.h"
+# "${PROJECT_SOURCE_DIR}/table/*.h"
+# "${PROJECT_SOURCE_DIR}/db/*.cc"
+# "${PROJECT_SOURCE_DIR}/include/*.cc"
+# "${PROJECT_SOURCE_DIR}/nvm/*.cc"
+# "${PROJECT_SOURCE_DIR}/silkstore/*.cc"
+# "${PROJECT_SOURCE_DIR}/helpers/*.cc"
+# "${PROJECT_SOURCE_DIR}/util/*.cc"
+#  "${PROJECT_SOURCE_DIR}/table/*.cc"
+)
+
+# Balancing act: cpplint.py takes a non-trivial time to launch,
+# so process 12 files per invocation, while still ensuring parallelism
+add_custom_target(check-lint echo '${BUSTUB_LINT_FILES}' | xargs -n12 -P8
+${CPPLINT_BIN}
+--verbose=2 --quiet
+--linelength=120
+--filter=-legal/copyright,-build/header_guard
+)
+
+###########################################################
+# "make check-clang-tidy" target
+###########################################################
+# runs clang-tidy and exits with a non-zero exit code if any errors are found.
+# note that clang-tidy automatically looks for a .clang-tidy file in parent directories
+add_custom_target(check-clang-tidy
+${BUSTUB_BUILD_SUPPORT_DIR}/run_clang_tidy.py                     # run LLVM's clang-tidy script
+-clang-tidy-binary ${CLANG_TIDY_BIN}                              # using our clang-tidy binary
+-p ${CMAKE_BINARY_DIR}                                            # using cmake's generated compile commands
+)
+
 
