@@ -22,19 +22,15 @@
 namespace leveldb {
 
 class PosixLogger final : public Logger {
- public:
+public:
   // Creates a logger that writes to the given file.
   //
   // The PosixLogger instance takes ownership of the file handle.
-  explicit PosixLogger(std::FILE* fp) : fp_(fp) {
-    assert(fp != nullptr);
-  }
+  explicit PosixLogger(std::FILE *fp) : fp_(fp) { assert(fp != nullptr); }
 
-  ~PosixLogger() override {
-    std::fclose(fp_);
-  }
+  ~PosixLogger() override { std::fclose(fp_); }
 
-  void Logv(const char* format, va_list arguments) override {
+  void Logv(const char *format, va_list arguments) override {
     // Record the time as close to the Logv() call as possible.
     struct ::timeval now_timeval;
     ::gettimeofday(&now_timeval, nullptr);
@@ -58,24 +54,19 @@ class PosixLogger final : public Logger {
     static_assert(sizeof(stack_buffer) == static_cast<size_t>(kStackBufferSize),
                   "sizeof(char) is expected to be 1 in C++");
 
-    int dynamic_buffer_size = 0;  // Computed in the first iteration.
+    int dynamic_buffer_size = 0; // Computed in the first iteration.
     for (int iteration = 0; iteration < 2; ++iteration) {
       const int buffer_size =
           (iteration == 0) ? kStackBufferSize : dynamic_buffer_size;
-      char* const buffer =
+      char *const buffer =
           (iteration == 0) ? stack_buffer : new char[dynamic_buffer_size];
 
       // Print the header into the buffer.
       int buffer_offset = snprintf(
-          buffer, buffer_size,
-          "%04d/%02d/%02d-%02d:%02d:%02d.%06d %s ",
-          now_components.tm_year + 1900,
-          now_components.tm_mon + 1,
-          now_components.tm_mday,
-          now_components.tm_hour,
-          now_components.tm_min,
-          now_components.tm_sec,
-          static_cast<int>(now_timeval.tv_usec),
+          buffer, buffer_size, "%04d/%02d/%02d-%02d:%02d:%02d.%06d %s ",
+          now_components.tm_year + 1900, now_components.tm_mon + 1,
+          now_components.tm_mday, now_components.tm_hour, now_components.tm_min,
+          now_components.tm_sec, static_cast<int>(now_timeval.tv_usec),
           thread_id.c_str());
 
       // The header can be at most 28 characters (10 date + 15 time +
@@ -89,9 +80,9 @@ class PosixLogger final : public Logger {
       // Print the message into the buffer.
       std::va_list arguments_copy;
       va_copy(arguments_copy, arguments);
-      buffer_offset += std::vsnprintf(buffer + buffer_offset,
-                                      buffer_size - buffer_offset, format,
-                                      arguments_copy);
+      buffer_offset +=
+          std::vsnprintf(buffer + buffer_offset, buffer_size - buffer_offset,
+                         format, arguments_copy);
       va_end(arguments_copy);
 
       // The code below may append a newline at the end of the buffer, which
@@ -130,10 +121,10 @@ class PosixLogger final : public Logger {
     }
   }
 
- private:
-  std::FILE* const fp_;
+private:
+  std::FILE *const fp_;
 };
 
-}  // namespace leveldb
+} // namespace leveldb
 
-#endif  // STORAGE_LEVELDB_UTIL_POSIX_LOGGER_H_
+#endif // STORAGE_LEVELDB_UTIL_POSIX_LOGGER_H_

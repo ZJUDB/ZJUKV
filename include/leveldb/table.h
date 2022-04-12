@@ -5,9 +5,9 @@
 #ifndef STORAGE_LEVELDB_INCLUDE_TABLE_H_
 #define STORAGE_LEVELDB_INCLUDE_TABLE_H_
 
-#include <stdint.h>
 #include "leveldb/export.h"
 #include "leveldb/iterator.h"
+#include <stdint.h>
 
 namespace leveldb {
 
@@ -23,7 +23,7 @@ class TableCache;
 // immutable and persistent.  A Table may be safely accessed from
 // multiple threads without external synchronization.
 class LEVELDB_EXPORT Table {
- public:
+public:
   // Attempt to open the table that is stored in bytes [0..file_size)
   // of "file", and read the metadata entries necessary to allow
   // retrieving data from the table.
@@ -36,20 +36,18 @@ class LEVELDB_EXPORT Table {
   // for the duration of the returned table's lifetime.
   //
   // *file must remain live while this Table is in use.
-  static Status Open(const Options& options,
-                     RandomAccessFile* file,
-                     uint64_t file_size,
-                     Table** table);
+  static Status Open(const Options &options, RandomAccessFile *file,
+                     uint64_t file_size, Table **table);
 
-  Table(const Table&) = delete;
-  void operator=(const Table&) = delete;
+  Table(const Table &) = delete;
+  void operator=(const Table &) = delete;
 
   ~Table();
 
   // Returns a new iterator over the table contents.
   // The result of NewIterator() is initially invalid (caller must
   // call one of the Seek methods on the iterator before using it).
-  Iterator* NewIterator(const ReadOptions&) const;
+  Iterator *NewIterator(const ReadOptions &) const;
 
   // Given a key, return an approximate byte offset in the file where
   // the data for that key begins (or would begin if the key were
@@ -57,29 +55,27 @@ class LEVELDB_EXPORT Table {
   // bytes, and so includes effects like compression of the underlying data.
   // E.g., the approximate offset of the last key in the table will
   // be close to the file length.
-  uint64_t ApproximateOffsetOf(const Slice& key) const;
+  uint64_t ApproximateOffsetOf(const Slice &key) const;
 
- private:
+private:
   struct Rep;
-  Rep* rep_;
+  Rep *rep_;
 
-  explicit Table(Rep* rep) { rep_ = rep; }
-  static Iterator* BlockReader(void*, const ReadOptions&, const Slice&);
+  explicit Table(Rep *rep) { rep_ = rep; }
+  static Iterator *BlockReader(void *, const ReadOptions &, const Slice &);
 
   // Calls (*handle_result)(arg, ...) with the entry found after a call
   // to Seek(key).  May not make such a call if filter policy says
   // that key is not present.
   friend class TableCache;
-  Status InternalGet(
-      const ReadOptions&, const Slice& key,
-      void* arg,
-      void (*handle_result)(void* arg, const Slice& k, const Slice& v));
+  Status InternalGet(const ReadOptions &, const Slice &key, void *arg,
+                     void (*handle_result)(void *arg, const Slice &k,
+                                           const Slice &v));
 
-
-  void ReadMeta(const Footer& footer);
-  void ReadFilter(const Slice& filter_handle_value);
+  void ReadMeta(const Footer &footer);
+  void ReadFilter(const Slice &filter_handle_value);
 };
 
-}  // namespace leveldb
+} // namespace leveldb
 
-#endif  // STORAGE_LEVELDB_INCLUDE_TABLE_H_
+#endif // STORAGE_LEVELDB_INCLUDE_TABLE_H_

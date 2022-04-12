@@ -30,13 +30,11 @@ TEST(Status, MoveConstructor) {
     Status self_moved = Status::IOError("custom IOError status message");
 
     // Needed to bypass compiler warning about explicit move-assignment.
-    Status& self_moved_reference = self_moved;
+    Status &self_moved_reference = self_moved;
     self_moved_reference = std::move(self_moved);
   }
 }
 
-}  // namespace leveldb
+} // namespace leveldb
 
-int main(int argc, char** argv) {
-  return leveldb::test::RunAllTests();
-}
+int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }

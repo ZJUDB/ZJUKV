@@ -9,12 +9,12 @@
 #include <map>
 #include <set>
 
-#include "leveldb/db.h"
 #include "db/db_impl.h"
 #include "db/filename.h"
 #include "db/log_format.h"
 #include "db/version_set.h"
 #include "leveldb/cache.h"
+#include "leveldb/db.h"
 #include "leveldb/env.h"
 #include "leveldb/table.h"
 #include "leveldb/write_batch.h"
@@ -36,7 +36,7 @@ class FaultInjectionTestEnv;
 namespace {
 
 // Assume a filename, and not a directory name like "/foo/bar/"
-static std::string GetDirName(const std::string& filename) {
+static std::string GetDirName(const std::string &filename) {
   size_t found = filename.find_last_of("/\\");
   if (found == std::string::npos) {
     return "";
@@ -45,27 +45,27 @@ static std::string GetDirName(const std::string& filename) {
   }
 }
 
-Status SyncDir(const std::string& dir) {
+Status SyncDir(const std::string &dir) {
   // As this is a test it isn't required to *actually* sync this directory.
   return Status::OK();
 }
 
 // A basic file truncation function suitable for this test.
-Status Truncate(const std::string& filename, uint64_t length) {
-  leveldb::Env* env = leveldb::Env::Default();
+Status Truncate(const std::string &filename, uint64_t length) {
+  leveldb::Env *env = leveldb::Env::Default();
 
-  SequentialFile* orig_file;
+  SequentialFile *orig_file;
   Status s = env->NewSequentialFile(filename, &orig_file);
   if (!s.ok())
     return s;
 
-  char* scratch = new char[length];
+  char *scratch = new char[length];
   leveldb::Slice result;
   s = orig_file->Read(length, &result, scratch);
   delete orig_file;
   if (s.ok()) {
     std::string tmp_name = GetDirName(filename) + "/truncate.tmp";
-    WritableFile* tmp_file;
+    WritableFile *tmp_file;
     s = env->NewWritableFile(tmp_name, &tmp_file);
     if (s.ok()) {
       s = tmp_file->Append(result);
@@ -89,11 +89,9 @@ struct FileState {
   int64_t pos_at_last_sync_;
   int64_t pos_at_last_flush_;
 
-  FileState(const std::string& filename)
-      : filename_(filename),
-        pos_(-1),
-        pos_at_last_sync_(-1),
-        pos_at_last_flush_(-1) { }
+  FileState(const std::string &filename)
+      : filename_(filename), pos_(-1), pos_at_last_sync_(-1),
+        pos_at_last_flush_(-1) {}
 
   FileState() : pos_(-1), pos_at_last_sync_(-1), pos_at_last_flush_(-1) {}
 
@@ -102,49 +100,48 @@ struct FileState {
   Status DropUnsyncedData() const;
 };
 
-}  // anonymous namespace
+} // anonymous namespace
 
 // A wrapper around WritableFile which informs another Env whenever this file
 // is written to or sync'ed.
 class TestWritableFile : public WritableFile {
- public:
-  TestWritableFile(const FileState& state,
-                   WritableFile* f,
-                   FaultInjectionTestEnv* env);
+public:
+  TestWritableFile(const FileState &state, WritableFile *f,
+                   FaultInjectionTestEnv *env);
   virtual ~TestWritableFile();
-  virtual Status Append(const Slice& data);
+  virtual Status Append(const Slice &data);
   virtual Status Close();
   virtual Status Flush();
   virtual Status Sync();
 
- private:
+private:
   FileState state_;
-  WritableFile* target_;
+  WritableFile *target_;
   bool writable_file_opened_;
-  FaultInjectionTestEnv* env_;
+  FaultInjectionTestEnv *env_;
 
   Status SyncParent();
 };
 
 class FaultInjectionTestEnv : public EnvWrapper {
- public:
+public:
   FaultInjectionTestEnv()
       : EnvWrapper(Env::Default()), filesystem_active_(true) {}
-  virtual ~FaultInjectionTestEnv() { }
-  virtual Status NewWritableFile(const std::string& fname,
-                                 WritableFile** result);
-  virtual Status NewAppendableFile(const std::string& fname,
-                                   WritableFile** result);
-  virtual Status DeleteFile(const std::string& f);
-  virtual Status RenameFile(const std::string& s, const std::string& t);
+  virtual ~FaultInjectionTestEnv() {}
+  virtual Status NewWritableFile(const std::string &fname,
+                                 WritableFile **result);
+  virtual Status NewAppendableFile(const std::string &fname,
+                                   WritableFile **result);
+  virtual Status DeleteFile(const std::string &f);
+  virtual Status RenameFile(const std::string &s, const std::string &t);
 
-  void WritableFileClosed(const FileState& state);
+  void WritableFileClosed(const FileState &state);
   Status DropUnsyncedFileData();
   Status DeleteFilesCreatedAfterLastDirSync();
   void DirWasSynced();
-  bool IsFileCreatedSinceLastDirSync(const std::string& filename);
+  bool IsFileCreatedSinceLastDirSync(const std::string &filename);
   void ResetState();
-  void UntrackFile(const std::string& f);
+  void UntrackFile(const std::string &f);
   // Setting the filesystem to inactive is the test equivalent to simulating a
   // system reset. Setting to inactive will freeze our saved filesystem state so
   // that it will stop being recorded. It can then be reset back to the state at
@@ -158,20 +155,16 @@ class FaultInjectionTestEnv : public EnvWrapper {
     filesystem_active_ = active;
   }
 
- private:
+private:
   port::Mutex mutex_;
   std::map<std::string, FileState> db_file_state_ GUARDED_BY(mutex_);
   std::set<std::string> new_files_since_last_dir_sync_ GUARDED_BY(mutex_);
-  bool filesystem_active_ GUARDED_BY(mutex_);  // Record flushes, syncs, writes
+  bool filesystem_active_ GUARDED_BY(mutex_); // Record flushes, syncs, writes
 };
 
-TestWritableFile::TestWritableFile(const FileState& state,
-                                   WritableFile* f,
-                                   FaultInjectionTestEnv* env)
-    : state_(state),
-      target_(f),
-      writable_file_opened_(true),
-      env_(env) {
+TestWritableFile::TestWritableFile(const FileState &state, WritableFile *f,
+                                   FaultInjectionTestEnv *env)
+    : state_(state), target_(f), writable_file_opened_(true), env_(env) {
   assert(f != nullptr);
 }
 
@@ -182,7 +175,7 @@ TestWritableFile::~TestWritableFile() {
   delete target_;
 }
 
-Status TestWritableFile::Append(const Slice& data) {
+Status TestWritableFile::Append(const Slice &data) {
   Status s = target_->Append(data);
   if (s.ok() && env_->IsFilesystemActive()) {
     state_.pos_ += data.size();
@@ -233,9 +226,9 @@ Status TestWritableFile::Sync() {
   return s;
 }
 
-Status FaultInjectionTestEnv::NewWritableFile(const std::string& fname,
-                                              WritableFile** result) {
-  WritableFile* actual_writable_file;
+Status FaultInjectionTestEnv::NewWritableFile(const std::string &fname,
+                                              WritableFile **result) {
+  WritableFile *actual_writable_file;
   Status s = target()->NewWritableFile(fname, &actual_writable_file);
   if (s.ok()) {
     FileState state(fname);
@@ -251,9 +244,9 @@ Status FaultInjectionTestEnv::NewWritableFile(const std::string& fname,
   return s;
 }
 
-Status FaultInjectionTestEnv::NewAppendableFile(const std::string& fname,
-                                                WritableFile** result) {
-  WritableFile* actual_writable_file;
+Status FaultInjectionTestEnv::NewAppendableFile(const std::string &fname,
+                                                WritableFile **result) {
+  WritableFile *actual_writable_file;
   Status s = target()->NewAppendableFile(fname, &actual_writable_file);
   if (s.ok()) {
     FileState state(fname);
@@ -277,7 +270,7 @@ Status FaultInjectionTestEnv::DropUnsyncedFileData() {
   for (std::map<std::string, FileState>::const_iterator it =
            db_file_state_.begin();
        s.ok() && it != db_file_state_.end(); ++it) {
-    const FileState& state = it->second;
+    const FileState &state = it->second;
     if (!state.IsFullySynced()) {
       s = state.DropUnsyncedData();
     }
@@ -291,19 +284,19 @@ void FaultInjectionTestEnv::DirWasSynced() {
 }
 
 bool FaultInjectionTestEnv::IsFileCreatedSinceLastDirSync(
-    const std::string& filename) {
+    const std::string &filename) {
   MutexLock l(&mutex_);
   return new_files_since_last_dir_sync_.find(filename) !=
          new_files_since_last_dir_sync_.end();
 }
 
-void FaultInjectionTestEnv::UntrackFile(const std::string& f) {
+void FaultInjectionTestEnv::UntrackFile(const std::string &f) {
   MutexLock l(&mutex_);
   db_file_state_.erase(f);
   new_files_since_last_dir_sync_.erase(f);
 }
 
-Status FaultInjectionTestEnv::DeleteFile(const std::string& f) {
+Status FaultInjectionTestEnv::DeleteFile(const std::string &f) {
   Status s = EnvWrapper::DeleteFile(f);
   ASSERT_OK(s);
   if (s.ok()) {
@@ -312,8 +305,8 @@ Status FaultInjectionTestEnv::DeleteFile(const std::string& f) {
   return s;
 }
 
-Status FaultInjectionTestEnv::RenameFile(const std::string& s,
-                                         const std::string& t) {
+Status FaultInjectionTestEnv::RenameFile(const std::string &s,
+                                         const std::string &t) {
   Status ret = EnvWrapper::RenameFile(s, t);
 
   if (ret.ok()) {
@@ -354,7 +347,7 @@ Status FaultInjectionTestEnv::DeleteFilesCreatedAfterLastDirSync() {
   return s;
 }
 
-void FaultInjectionTestEnv::WritableFileClosed(const FileState& state) {
+void FaultInjectionTestEnv::WritableFileClosed(const FileState &state) {
   MutexLock l(&mutex_);
   db_file_state_[state.filename_] = state;
 }
@@ -365,22 +358,21 @@ Status FileState::DropUnsyncedData() const {
 }
 
 class FaultInjectionTest {
- public:
+public:
   enum ExpectedVerifResult { VAL_EXPECT_NO_ERROR, VAL_EXPECT_ERROR };
   enum ResetMethod { RESET_DROP_UNSYNCED_DATA, RESET_DELETE_UNSYNCED_FILES };
 
-  FaultInjectionTestEnv* env_;
+  FaultInjectionTestEnv *env_;
   std::string dbname_;
-  Cache* tiny_cache_;
+  Cache *tiny_cache_;
   Options options_;
-  DB* db_;
+  DB *db_;
 
   FaultInjectionTest()
-      : env_(new FaultInjectionTestEnv),
-        tiny_cache_(NewLRUCache(100)),
+      : env_(new FaultInjectionTestEnv), tiny_cache_(NewLRUCache(100)),
         db_(nullptr) {
     dbname_ = test::TmpDir() + "/fault_test";
-    DestroyDB(dbname_, Options());  // Destroy any db from earlier run
+    DestroyDB(dbname_, Options()); // Destroy any db from earlier run
     options_.reuse_logs = true;
     options_.env = env_;
     options_.paranoid_checks = true;
@@ -395,9 +387,7 @@ class FaultInjectionTest {
     delete env_;
   }
 
-  void ReuseLogs(bool reuse) {
-    options_.reuse_logs = reuse;
-  }
+  void ReuseLogs(bool reuse) { options_.reuse_logs = reuse; }
 
   void Build(int start_idx, int num_vals) {
     std::string key_space, value_space;
@@ -411,7 +401,7 @@ class FaultInjectionTest {
     }
   }
 
-  Status ReadValue(int i, std::string* val) const {
+  Status ReadValue(int i, std::string *val) const {
     std::string key_space, value_space;
     Slice key = Key(i, &key_space);
     Value(i, &value_space);
@@ -435,14 +425,14 @@ class FaultInjectionTest {
         fprintf(stderr, "Expected an error at %d, but was OK\n", i);
         s = Status::IOError(dbname_, "Expected value error:");
       } else {
-        s = Status::OK();  // An expected error
+        s = Status::OK(); // An expected error
       }
     }
     return s;
   }
 
   // Return the ith key
-  Slice Key(int i, std::string* storage) const {
+  Slice Key(int i, std::string *storage) const {
     char buf[100];
     snprintf(buf, sizeof(buf), "%016d", i);
     storage->assign(buf, strlen(buf));
@@ -450,7 +440,7 @@ class FaultInjectionTest {
   }
 
   // Return the value to associate with the specified key
-  Slice Value(int k, std::string* storage) const {
+  Slice Value(int k, std::string *storage) const {
     Random r(k);
     return test::RandomString(&r, kValueSize, storage);
   }
@@ -468,7 +458,7 @@ class FaultInjectionTest {
   }
 
   void DeleteAllData() {
-    Iterator* iter = db_->NewIterator(ReadOptions());
+    Iterator *iter = db_->NewIterator(ReadOptions());
     WriteOptions options;
     for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
       ASSERT_OK(db_->Delete(WriteOptions(), iter->key()));
@@ -479,14 +469,14 @@ class FaultInjectionTest {
 
   void ResetDBState(ResetMethod reset_method) {
     switch (reset_method) {
-      case RESET_DROP_UNSYNCED_DATA:
-        ASSERT_OK(env_->DropUnsyncedFileData());
-        break;
-      case RESET_DELETE_UNSYNCED_FILES:
-        ASSERT_OK(env_->DeleteFilesCreatedAfterLastDirSync());
-        break;
-      default:
-        assert(false);
+    case RESET_DROP_UNSYNCED_DATA:
+      ASSERT_OK(env_->DropUnsyncedFileData());
+      break;
+    case RESET_DELETE_UNSYNCED_FILES:
+      ASSERT_OK(env_->DeleteFilesCreatedAfterLastDirSync());
+      break;
+    default:
+      assert(false);
     }
   }
 
@@ -498,18 +488,17 @@ class FaultInjectionTest {
   }
 
   void PartialCompactTestReopenWithFault(ResetMethod reset_method,
-                                         int num_pre_sync,
-                                         int num_post_sync) {
+                                         int num_pre_sync, int num_post_sync) {
     env_->SetFilesystemActive(false);
     CloseDB();
     ResetDBState(reset_method);
     ASSERT_OK(OpenDB());
     ASSERT_OK(Verify(0, num_pre_sync, FaultInjectionTest::VAL_EXPECT_NO_ERROR));
-    ASSERT_OK(Verify(num_pre_sync, num_post_sync, FaultInjectionTest::VAL_EXPECT_ERROR));
+    ASSERT_OK(Verify(num_pre_sync, num_post_sync,
+                     FaultInjectionTest::VAL_EXPECT_ERROR));
   }
 
-  void NoWriteTestPreFault() {
-  }
+  void NoWriteTestPreFault() {}
 
   void NoWriteTestReopenWithFault(ResetMethod reset_method) {
     CloseDB();
@@ -525,8 +514,7 @@ class FaultInjectionTest {
       int num_post_sync = rnd.Uniform(kMaxNumValues);
 
       PartialCompactTestPreFault(num_pre_sync, num_post_sync);
-      PartialCompactTestReopenWithFault(RESET_DROP_UNSYNCED_DATA,
-                                        num_pre_sync,
+      PartialCompactTestReopenWithFault(RESET_DROP_UNSYNCED_DATA, num_pre_sync,
                                         num_post_sync);
 
       NoWriteTestPreFault();
@@ -536,8 +524,7 @@ class FaultInjectionTest {
       // No new files created so we expect all values since no files will be
       // dropped.
       PartialCompactTestReopenWithFault(RESET_DELETE_UNSYNCED_FILES,
-                                        num_pre_sync + num_post_sync,
-                                        0);
+                                        num_pre_sync + num_post_sync, 0);
 
       NoWriteTestPreFault();
       NoWriteTestReopenWithFault(RESET_DELETE_UNSYNCED_FILES);
@@ -555,8 +542,6 @@ TEST(FaultInjectionTest, FaultTestWithLogReuse) {
   DoTest();
 }
 
-}  // namespace leveldb
+} // namespace leveldb
 
-int main(int argc, char** argv) {
-  return leveldb::test::RunAllTests();
-}
+int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }

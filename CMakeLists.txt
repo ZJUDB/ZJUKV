@@ -462,3 +462,71 @@ if(LEVELDB_INSTALL)
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/leveldb"
   )
 endif(LEVELDB_INSTALL)
+
+
+
+# Expected directory structure.
+set(BUSTUB_BUILD_SUPPORT_DIR "${CMAKE_SOURCE_DIR}/build_support")
+set(BUSTUB_CLANG_SEARCH_PATH "/usr/local/bin" "/usr/bin" "/usr/local/opt/llvm/bin" "/usr/local/opt/llvm@8/bin"
+        "/usr/local/Cellar/llvm/8.0.1/bin")
+
+
+
+######################################################################################################################
+# DEPENDENCIES
+######################################################################################################################
+
+# CTest
+enable_testing()
+
+# clang-format
+if (NOT DEFINED CLANG_FORMAT_BIN)
+    # attempt to find the binary if user did not specify
+    find_program(CLANG_FORMAT_BIN
+            NAMES clang-format clang-format-8
+            HINTS ${BUSTUB_CLANG_SEARCH_PATH})
+endif()
+if ("${CLANG_FORMAT_BIN}" STREQUAL "CLANG_FORMAT_BIN-NOTFOUND")
+    message(WARNING "BusTub/main couldn't find clang-format.")
+else()
+    message(STATUS "BusTub/main found clang-format at ${CLANG_FORMAT_BIN}")
+endif()
+
+######################################################################################################################
+# MAKE TARGETS
+######################################################################################################################
+
+##########################################
+# "make format"
+# "make check-format"
+##########################################
+
+string(CONCAT BUSTUB_FORMAT_DIRS
+        "${PROJECT_SOURCE_DIR}/db,"
+        "${PROJECT_SOURCE_DIR}/include,"
+        "${PROJECT_SOURCE_DIR}/nvm,"
+        "${PROJECT_SOURCE_DIR}/silkstore,"
+        "${PROJECT_SOURCE_DIR}/helpers,"
+        "${PROJECT_SOURCE_DIR}/util,"
+        "${PROJECT_SOURCE_DIR}/table,"
+        )
+
+# runs clang format and updates files in place.
+add_custom_target(format ${BUSTUB_BUILD_SUPPORT_DIR}/run_clang_format.py
+        ${CLANG_FORMAT_BIN}
+        ${BUSTUB_BUILD_SUPPORT_DIR}/clang_format_exclusions.txt
+        --source_dirs
+        ${BUSTUB_FORMAT_DIRS}
+        --fix
+        --quiet
+        )
+
+# runs clang format and exits with a non-zero exit code if any files need to be reformatted
+add_custom_target(check-format ${BUSTUB_BUILD_SUPPORT_DIR}/run_clang_format.py
+        ${CLANG_FORMAT_BIN}
+        ${BUSTUB_BUILD_SUPPORT_DIR}/clang_format_exclusions.txt
+        --source_dirs
+        ${BUSTUB_FORMAT_DIRS}
+        --quiet
+        )
+

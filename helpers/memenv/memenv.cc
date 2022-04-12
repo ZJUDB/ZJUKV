@@ -22,7 +22,7 @@ namespace leveldb {
 namespace {
 
 class FileState {
- public:
+public:
   // FileStates are reference counted. The initial reference count is zero
   // and the caller must call Ref() at least once.
   FileState() : refs_(0), size_(0) {}
@@ -53,7 +53,7 @@ class FileState {
 
   uint64_t Size() const { return size_; }
 
-  Status Read(uint64_t offset, size_t n, Slice* result, char* scratch) const {
+  Status Read(uint64_t offset, size_t n, Slice *result, char *scratch) const {
     if (offset > size_) {
       return Status::IOError("Offset greater than file size.");
     }
@@ -77,7 +77,7 @@ class FileState {
     }
 
     size_t bytes_to_copy = n;
-    char* dst = scratch;
+    char *dst = scratch;
 
     while (bytes_to_copy > 0) {
       size_t avail = kBlockSize - block_offset;
@@ -96,8 +96,8 @@ class FileState {
     return Status::OK();
   }
 
-  Status Append(const Slice& data) {
-    const char* src = data.data();
+  Status Append(const Slice &data) {
+    const char *src = data.data();
     size_t src_len = data.size();
 
     while (src_len > 0) {
@@ -125,18 +125,18 @@ class FileState {
     return Status::OK();
   }
 
- private:
+private:
   // Private since only Unref() should be used to delete it.
   ~FileState() {
-    for (std::vector<char*>::iterator i = blocks_.begin(); i != blocks_.end();
+    for (std::vector<char *>::iterator i = blocks_.begin(); i != blocks_.end();
          ++i) {
-      delete [] *i;
+      delete[] * i;
     }
   }
 
   // No copying allowed.
-  FileState(const FileState&);
-  void operator=(const FileState&);
+  FileState(const FileState &);
+  void operator=(const FileState &);
 
   port::Mutex refs_mutex_;
   int refs_ GUARDED_BY(refs_mutex_);
@@ -144,23 +144,21 @@ class FileState {
   // The following fields are not protected by any mutex. They are only mutable
   // while the file is being written, and concurrent access is not allowed
   // to writable files.
-  std::vector<char*> blocks_;
+  std::vector<char *> blocks_;
   uint64_t size_;
 
   enum { kBlockSize = 8 * 1024 };
 };
 
 class SequentialFileImpl : public SequentialFile {
- public:
-  explicit SequentialFileImpl(FileState* file) : file_(file), pos_(0) {
+public:
+  explicit SequentialFileImpl(FileState *file) : file_(file), pos_(0) {
     file_->Ref();
   }
 
-  ~SequentialFileImpl() {
-    file_->Unref();
-  }
+  ~SequentialFileImpl() { file_->Unref(); }
 
-  virtual Status Read(size_t n, Slice* result, char* scratch) {
+  virtual Status Read(size_t n, Slice *result, char *scratch) {
     Status s = file_->Read(pos_, n, result, scratch);
     if (s.ok()) {
       pos_ += result->size();
@@ -180,70 +178,61 @@ class SequentialFileImpl : public SequentialFile {
     return Status::OK();
   }
 
- private:
-  FileState* file_;
+private:
+  FileState *file_;
   uint64_t pos_;
 };
 
 class RandomAccessFileImpl : public RandomAccessFile {
- public:
-  explicit RandomAccessFileImpl(FileState* file) : file_(file) {
-    file_->Ref();
-  }
+public:
+  explicit RandomAccessFileImpl(FileState *file) : file_(file) { file_->Ref(); }
 
-  ~RandomAccessFileImpl() {
-    file_->Unref();
-  }
+  ~RandomAccessFileImpl() { file_->Unref(); }
 
-  virtual Status Read(uint64_t offset, size_t n, Slice* result,
-                      char* scratch) const {
+  virtual Status Read(uint64_t offset, size_t n, Slice *result,
+                      char *scratch) const {
     return file_->Read(offset, n, result, scratch);
   }
 
- private:
-  FileState* file_;
+private:
+  FileState *file_;
 };
 
 class WritableFileImpl : public WritableFile {
- public:
-  WritableFileImpl(FileState* file) : file_(file) {
-    file_->Ref();
-  }
+public:
+  WritableFileImpl(FileState *file) : file_(file) { file_->Ref(); }
 
-  ~WritableFileImpl() {
-    file_->Unref();
-  }
+  ~WritableFileImpl() { file_->Unref(); }
 
-  virtual Status Append(const Slice& data) {
-    return file_->Append(data);
-  }
+  virtual Status Append(const Slice &data) { return file_->Append(data); }
 
   virtual Status Close() { return Status::OK(); }
   virtual Status Flush() { return Status::OK(); }
   virtual Status Sync() { return Status::OK(); }
 
- private:
-  FileState* file_;
+private:
+  FileState *file_;
 };
 
 class NoOpLogger : public Logger {
- public:
-  virtual void Logv(const char* format, va_list ap) { }
+public:
+  virtual void Logv(const char *format, va_list ap) {}
 };
 
 class InMemoryEnv : public EnvWrapper {
- public:
-  explicit InMemoryEnv(Env* base_env) : EnvWrapper(base_env) { }
+public:
+  explicit InMemoryEnv(Env *base_env) : EnvWrapper(base_env) {}
 
   virtual ~InMemoryEnv() {
-    for (FileSystem::iterator i = file_map_.begin(); i != file_map_.end(); ++i){
+    for (FileSystem::iterator i = file_map_.begin(); i != file_map_.end();
+         ++i) {
       i->second->Unref();
     }
   }
 
   // Partial implementation of the Env interface.
-  virtual Status NewSequentialFile(const std::string& fname,
-                                   SequentialFile** result) {
+  virtual Status NewSequentialFile(const std::string &fname,
+                                   SequentialFile **result) {
     MutexLock lock(&mutex_);
     if (file_map_.find(fname) == file_map_.end()) {
       *result = nullptr;
@@ -254,8 +243,8 @@ class InMemoryEnv : public EnvWrapper {
     return Status::OK();
   }
 
-  virtual Status NewRandomAccessFile(const std::string& fname,
-                                     RandomAccessFile** result) {
+  virtual Status NewRandomAccessFile(const std::string &fname,
+                                     RandomAccessFile **result) {
     MutexLock lock(&mutex_);
     if (file_map_.find(fname) == file_map_.end()) {
       *result = nullptr;
@@ -266,14 +255,14 @@ class InMemoryEnv : public EnvWrapper {
     return Status::OK();
   }
 
-  virtual Status NewWritableFile(const std::string& fname,
-                                 WritableFile** result) {
+  virtual Status NewWritableFile(const std::string &fname,
+                                 WritableFile **result) {
     MutexLock lock(&mutex_);
     if (file_map_.find(fname) != file_map_.end()) {
       DeleteFileInternal(fname);
     }
 
-    FileState* file = new FileState();
+    FileState *file = new FileState();
     file->Ref();
     file_map_[fname] = file;
 
@@ -281,11 +270,11 @@ class InMemoryEnv : public EnvWrapper {
     return Status::OK();
   }
 
-  virtual Status NewAppendableFile(const std::string& fname,
-                                   WritableFile** result) {
+  virtual Status NewAppendableFile(const std::string &fname,
+                                   WritableFile **result) {
     MutexLock lock(&mutex_);
-    FileState** sptr = &file_map_[fname];
-    FileState* file = *sptr;
+    FileState **sptr = &file_map_[fname];
+    FileState *file = *sptr;
     if (file == nullptr) {
       file = new FileState();
       file->Ref();
@@ -294,18 +283,19 @@ class InMemoryEnv : public EnvWrapper {
     return Status::OK();
   }
 
-  virtual bool FileExists(const std::string& fname) {
+  virtual bool FileExists(const std::string &fname) {
     MutexLock lock(&mutex_);
     return file_map_.find(fname) != file_map_.end();
   }
 
-  virtual Status GetChildren(const std::string& dir,
-                             std::vector<std::string>* result) {
+  virtual Status GetChildren(const std::string &dir,
+                             std::vector<std::string> *result) {
     MutexLock lock(&mutex_);
     result->clear();
 
-    for (FileSystem::iterator i = file_map_.begin(); i != file_map_.end(); ++i){
-      const std::string& filename = i->first;
+    for (FileSystem::iterator i = file_map_.begin(); i != file_map_.end();
+         ++i) {
+      const std::string &filename = i->first;
 
       if (filename.size() >= dir.size() + 1 && filename[dir.size()] == '/' &&
           Slice(filename).starts_with(Slice(dir))) {
@@ -316,7 +306,7 @@ class InMemoryEnv : public EnvWrapper {
     return Status::OK();
   }
 
-  void DeleteFileInternal(const std::string& fname)
+  void DeleteFileInternal(const std::string &fname)
       EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
     if (file_map_.find(fname) == file_map_.end()) {
       return;
@@ -326,7 +316,7 @@ class InMemoryEnv : public EnvWrapper {
     file_map_.erase(fname);
   }
 
-  virtual Status DeleteFile(const std::string& fname) {
+  virtual Status DeleteFile(const std::string &fname) {
     MutexLock lock(&mutex_);
     if (file_map_.find(fname) == file_map_.end()) {
       return Status::IOError(fname, "File not found");
@@ -336,15 +326,11 @@ class InMemoryEnv : public EnvWrapper {
     return Status::OK();
   }
 
-  virtual Status CreateDir(const std::string& dirname) {
-    return Status::OK();
-  }
+  virtual Status CreateDir(const std::string &dirname) { return Status::OK(); }
 
-  virtual Status DeleteDir(const std::string& dirname) {
-    return Status::OK();
-  }
+  virtual Status DeleteDir(const std::string &dirname) { return Status::OK(); }
 
-  virtual Status GetFileSize(const std::string& fname, uint64_t* file_size) {
+  virtual Status GetFileSize(const std::string &fname, uint64_t *file_size) {
     MutexLock lock(&mutex_);
     if (file_map_.find(fname) == file_map_.end()) {
       return Status::IOError(fname, "File not found");
@@ -354,8 +340,7 @@ class InMemoryEnv : public EnvWrapper {
     return Status::OK();
   }
 
-  virtual Status RenameFile(const std::string& src,
-                            const std::string& target) {
+  virtual Status RenameFile(const std::string &src, const std::string &target) {
     MutexLock lock(&mutex_);
     if (file_map_.find(src) == file_map_.end()) {
       return Status::IOError(src, "File not found");
@@ -367,37 +352,35 @@ class InMemoryEnv : public EnvWrapper {
     return Status::OK();
   }
 
-  virtual Status LockFile(const std::string& fname, FileLock** lock) {
+  virtual Status LockFile(const std::string &fname, FileLock **lock) {
     *lock = new FileLock;
     return Status::OK();
   }
 
-  virtual Status UnlockFile(FileLock* lock) {
+  virtual Status UnlockFile(FileLock *lock) {
     delete lock;
     return Status::OK();
   }
 
-  virtual Status GetTestDirectory(std::string* path) {
+  virtual Status GetTestDirectory(std::string *path) {
     *path = "/test";
     return Status::OK();
   }
 
-  virtual Status NewLogger(const std::string& fname, Logger** result) {
+  virtual Status NewLogger(const std::string &fname, Logger **result) {
     *result = new NoOpLogger;
     return Status::OK();
   }
 
- private:
+private:
   // Map from filenames to FileState objects, representing a simple file system.
-  typedef std::map<std::string, FileState*> FileSystem;
+  typedef std::map<std::string, FileState *> FileSystem;
   port::Mutex mutex_;
   FileSystem file_map_ GUARDED_BY(mutex_);
 };
 
-}  // namespace
+} // namespace
 
-Env* NewMemEnv(Env* base_env) {
-  return new InMemoryEnv(base_env);
-}
+Env *NewMemEnv(Env *base_env) { return new InMemoryEnv(base_env); }
 
-}  // namespace leveldb
+} // namespace leveldb

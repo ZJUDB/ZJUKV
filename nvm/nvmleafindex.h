@@ -1,21 +1,19 @@
 #ifndef STORAGE_LEVELDB_INCLUDE_NVM_LEAF_INDEX_H_
 #define STORAGE_LEVELDB_INCLUDE_NVM_LEAF_INDEX_H_
 
-#include <string>
-#include <map>
-#include <cstdint>
-#include <cstdio>
 #include "db/write_batch_internal.h"
-#include "leveldb/write_batch.h"
 #include "leveldb/db.h"
 #include "leveldb/iterator.h"
 #include "leveldb/options.h"
-#include "nvm/nvmmanager.h"
+#include "leveldb/write_batch.h"
 #include "nvm/leafindex/leafindex.h"
+#include "nvm/nvmmanager.h"
 #include "port/port.h"
 #include "port/thread_annotations.h"
-
-
+#include <cstdint>
+#include <cstdio>
+#include <map>
+#include <string>
 
 namespace leveldb {
 
@@ -24,49 +22,47 @@ namespace silkstore {
 // A NvmLeafIndex is a persistent ordered map from keys to values.
 // A NvmLeafIndex is safe for concurrent access from multiple threads without
 // any external synchronization.
-class NvmLeafIndex: public DB {
+class NvmLeafIndex : public DB {
 public:
   // Open the database with the specified "name".
   // Stores a pointer to a heap-allocated database in *dbptr and returns
   // OK on success.
   // Stores nullptr in *dbptr and returns a non-OK status on error.
   // Caller should delete *dbptr when it is no longer needed.
-  static Status OpenNvmLeafIndex(const Options& options,
-                     const std::string& name,
-                     DB** dbptr);
-  NvmLeafIndex(const Options& options, const std::string& dbname);
+  static Status OpenNvmLeafIndex(const Options &options,
+                                 const std::string &name, DB **dbptr);
+  NvmLeafIndex(const Options &options, const std::string &dbname);
   NvmLeafIndex() = default;
-  NvmLeafIndex(const NvmLeafIndex&) = delete;
-  NvmLeafIndex& operator=(const NvmLeafIndex&) = delete;
+  NvmLeafIndex(const NvmLeafIndex &) = delete;
+  NvmLeafIndex &operator=(const NvmLeafIndex &) = delete;
 
-  virtual ~NvmLeafIndex() ;
+  virtual ~NvmLeafIndex();
 
   // Set the database entry for "key" to "value".  Returns OK on success,
   // and a non-OK status on error.
   // Note: consider setting options.sync = true.
-  virtual Status Put(const WriteOptions& options,
-                     const Slice& key,
-                     const Slice& value) ;
+  virtual Status Put(const WriteOptions &options, const Slice &key,
+                     const Slice &value);
 
   // Remove the database entry (if any) for "key".  Returns OK on
   // success, and a non-OK status on error.  It is not an error if "key"
   // did not exist in the database.
   // Note: consider setting options.sync = true.
-  virtual Status Delete(const WriteOptions& options, const Slice& key) ;
+  virtual Status Delete(const WriteOptions &options, const Slice &key);
 
   // Apply the specified updates to the database.
   // Returns OK on success, non-OK on failure.
   // Note: consider setting options.sync = true.
-  virtual Status Write(const WriteOptions& options, WriteBatch* updates) ;
-  
+  virtual Status Write(const WriteOptions &options, WriteBatch *updates);
+
   // If the database contains an entry for "key" store the
   // corresponding value in *value and return OK.
   //
   // If there is no entry for "key" leave *value unchanged and return
   // a status for which Status::IsNotFound() returns true.
   // May return some other Status on an error.
-  virtual Status Get(const ReadOptions& options,
-                     const Slice& key, std::string* value) ;
+  virtual Status Get(const ReadOptions &options, const Slice &key,
+                     std::string *value);
 
   // Return a heap-allocated iterator over the contents of the database.
   // The result of NewIterator() is initially invalid (caller must
@@ -74,18 +70,18 @@ public:
   //
   // Caller should delete the iterator when it is no longer needed.
   // The returned iterator should be deleted before this db is deleted.
-  //virtual Iterator* NewIterator(const ReadOptions& options) ;
-  //Iterator* NewIterator(const ReadOptions);
-  Iterator* NewIterator(const ReadOptions& options);
+  // virtual Iterator* NewIterator(const ReadOptions& options) ;
+  // Iterator* NewIterator(const ReadOptions);
+  Iterator *NewIterator(const ReadOptions &options);
   // Return a handle to the current DB state.  Iterators created with
   // this handle will all observe a stable snapshot of the current DB
   // state.  The caller must call ReleaseSnapshot(result) when the
   // snapshot is no longer needed.
-  virtual const Snapshot* GetSnapshot() ;
+  virtual const Snapshot *GetSnapshot();
 
   // Release a previously acquired snapshot.  The caller must not
   // use "snapshot" after this call.
-  virtual void ReleaseSnapshot(const Snapshot* snapshot) ;
+  virtual void ReleaseSnapshot(const Snapshot *snapshot);
 
   // DB implementations can export properties about their state
   // via this method.  If "property" is a valid property understood by this
@@ -103,7 +99,7 @@ public:
   //     of the sstables that make up the db contents.
   //  "leveldb.approximate-memory-usage" - returns the approximate number of
   //     bytes of memory in use by the DB.
-  virtual bool GetProperty(const Slice& property, std::string* value) ;
+  virtual bool GetProperty(const Slice &property, std::string *value);
 
   // For each i in [0,n-1], store in "sizes[i]", the approximate
   // file system space used by keys in "[range[i].start .. range[i].limit)".
@@ -112,9 +108,7 @@ public:
   // if the user data compresses by a factor of ten, the returned
   // sizes will be one-tenth the size of the corresponding user data size.
   // The results may not include the sizes of recently written data.
-  virtual void GetApproximateSizes(const Range* range, int n,
-                                   uint64_t* sizes) ;
-                                   
+  virtual void GetApproximateSizes(const Range *range, int n, uint64_t *sizes);
 
   // Compact the underlying storage for the key range [*begin,*end].
   // In particular, deleted and overwritten versions are discarded,
@@ -126,15 +120,15 @@ public:
   // end==nullptr is treated as a key after all keys in the database.
   // Therefore the following call will compact the entire database:
   //    db->CompactRange(nullptr, nullptr);
-  virtual void CompactRange(const Slice* begin, const Slice* end) ;
+  virtual void CompactRange(const Slice *begin, const Slice *end);
+
 private:
   size_t cap_;
   LeafIndex *leaf_index_;
   port::Mutex mutex_;
 };
 
-                 
-}  // namespace silkstore
-}  // namespace leveldb
+} // namespace silkstore
+} // namespace leveldb
 
-#endif  // STORAGE_LEVELDB_INCLUDE_NVM_LEAF_INDEX_H_
+#endif // STORAGE_LEVELDB_INCLUDE_NVM_LEAF_INDEX_H_

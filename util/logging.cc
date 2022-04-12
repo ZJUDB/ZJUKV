@@ -4,23 +4,23 @@
 
 #include "util/logging.h"
 
+#include "leveldb/env.h"
+#include "leveldb/slice.h"
 #include <errno.h>
+#include <limits>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <limits>
-#include "leveldb/env.h"
-#include "leveldb/slice.h"
 
 namespace leveldb {
 
-void AppendNumberTo(std::string* str, uint64_t num) {
+void AppendNumberTo(std::string *str, uint64_t num) {
   char buf[30];
-  snprintf(buf, sizeof(buf), "%llu", (unsigned long long) num);
+  snprintf(buf, sizeof(buf), "%llu", (unsigned long long)num);
   str->append(buf);
 }
 
-void AppendEscapedStringTo(std::string* str, const Slice& value) {
+void AppendEscapedStringTo(std::string *str, const Slice &value) {
   for (size_t i = 0; i < value.size(); i++) {
     char c = value[i];
     if (c >= ' ' && c <= '~') {
@@ -40,13 +40,13 @@ std::string NumberToString(uint64_t num) {
   return r;
 }
 
-std::string EscapeString(const Slice& value) {
+std::string EscapeString(const Slice &value) {
   std::string r;
   AppendEscapedStringTo(&r, value);
   return r;
 }
 
-bool ConsumeDecimalNumber(Slice* in, uint64_t* val) {
+bool ConsumeDecimalNumber(Slice *in, uint64_t *val) {
   // Constants that will be optimized away.
   constexpr const uint64_t kMaxUint64 = std::numeric_limits<uint64_t>::max();
   constexpr const char kLastDigitOfMaxUint64 =
@@ -55,11 +55,11 @@ bool ConsumeDecimalNumber(Slice* in, uint64_t* val) {
   uint64_t value = 0;
 
   // reinterpret_cast-ing from char* to unsigned char* to avoid signedness.
-  const unsigned char* start =
-      reinterpret_cast<const unsigned char*>(in->data());
+  const unsigned char *start =
+      reinterpret_cast<const unsigned char *>(in->data());
 
-  const unsigned char* end = start + in->size();
-  const unsigned char* current = start;
+  const unsigned char *end = start + in->size();
+  const unsigned char *current = start;
   for (; current != end; ++current) {
     const unsigned char ch = *current;
     if (ch < '0' || ch > '9')
@@ -81,4 +81,4 @@ bool ConsumeDecimalNumber(Slice* in, uint64_t* val) {
   return digits_consumed != 0;
 }
 
-}  // namespace leveldb
+} // namespace leveldb

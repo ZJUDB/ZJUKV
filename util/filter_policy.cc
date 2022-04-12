@@ -6,7 +6,7 @@
 
 namespace leveldb {
 
-FilterPolicy::~FilterPolicy() { }
+FilterPolicy::~FilterPolicy() {}
 
-DynamicFilter::~DynamicFilter() { }
-}  // namespace leveldb
+DynamicFilter::~DynamicFilter() {}
+} // namespace leveldb

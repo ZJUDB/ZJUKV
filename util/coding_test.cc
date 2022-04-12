@@ -9,7 +9,7 @@
 
 namespace leveldb {
 
-class Coding { };
+class Coding {};
 
 TEST(Coding, Fixed32) {
   std::string s;
@@ -17,7 +17,7 @@ TEST(Coding, Fixed32) {
     PutFixed32(&s, v);
   }
 
-  const char* p = s.data();
+  const char *p = s.data();
   for (uint32_t v = 0; v < 100000; v++) {
     uint32_t actual = DecodeFixed32(p);
     ASSERT_EQ(v, actual);
@@ -34,20 +34,20 @@ TEST(Coding, Fixed64) {
     PutFixed64(&s, v + 1);
   }
 
-  const char* p = s.data();
+  const char *p = s.data();
   for (int power = 0; power <= 63; power++) {
     uint64_t v = static_cast<uint64_t>(1) << power;
     uint64_t actual;
     actual = DecodeFixed64(p);
-    ASSERT_EQ(v-1, actual);
+    ASSERT_EQ(v - 1, actual);
     p += sizeof(uint64_t);
 
     actual = DecodeFixed64(p);
-    ASSERT_EQ(v+0, actual);
+    ASSERT_EQ(v + 0, actual);
     p += sizeof(uint64_t);
 
     actual = DecodeFixed64(p);
-    ASSERT_EQ(v+1, actual);
+    ASSERT_EQ(v + 1, actual);
     p += sizeof(uint64_t);
   }
 }
@@ -82,12 +82,12 @@ TEST(Coding, Varint32) {
     PutVarint32(&s, v);
   }
 
-  const char* p = s.data();
-  const char* limit = p + s.size();
+  const char *p = s.data();
+  const char *limit = p + s.size();
   for (uint32_t i = 0; i < (32 * 32); i++) {
     uint32_t expected = (i / 32) << (i % 32);
     uint32_t actual;
-    const char* start = p;
+    const char *start = p;
     p = GetVarint32Ptr(p, limit, &actual);
     ASSERT_TRUE(p != nullptr);
     ASSERT_EQ(expected, actual);
@@ -108,8 +108,8 @@ TEST(Coding, Varint64) {
     // Test values near powers of two
     const uint64_t power = 1ull << k;
     values.push_back(power);
-    values.push_back(power-1);
-    values.push_back(power+1);
+    values.push_back(power - 1);
+    values.push_back(power + 1);
   }
 
   std::string s;
@@ -117,12 +117,12 @@ TEST(Coding, Varint64) {
     PutVarint64(&s, values[i]);
   }
 
-  const char* p = s.data();
-  const char* limit = p + s.size();
+  const char *p = s.data();
+  const char *limit = p + s.size();
   for (size_t i = 0; i < values.size(); i++) {
     ASSERT_TRUE(p < limit);
     uint64_t actual;
-    const char* start = p;
+    const char *start = p;
     p = GetVarint64Ptr(p, limit, &actual);
     ASSERT_TRUE(p != nullptr);
     ASSERT_EQ(values[i], actual);
@@ -134,8 +134,8 @@ TEST(Coding, Varint64) {
 TEST(Coding, Varint32Overflow) {
   uint32_t result;
   std::string input("\x81\x82\x83\x84\x85\x11");
-  ASSERT_TRUE(GetVarint32Ptr(input.data(), input.data() + input.size(), &result)
-              == nullptr);
+  ASSERT_TRUE(GetVarint32Ptr(input.data(), input.data() + input.size(),
+                             &result) == nullptr);
 }
 
 TEST(Coding, Varint32Truncation) {
@@ -146,16 +146,16 @@ TEST(Coding, Varint32Truncation) {
   for (size_t len = 0; len < s.size() - 1; len++) {
     ASSERT_TRUE(GetVarint32Ptr(s.data(), s.data() + len, &result) == nullptr);
   }
-  ASSERT_TRUE(
-      GetVarint32Ptr(s.data(), s.data() + s.size(), &result) != nullptr);
+  ASSERT_TRUE(GetVarint32Ptr(s.data(), s.data() + s.size(), &result) !=
+              nullptr);
   ASSERT_EQ(large_value, result);
 }
 
 TEST(Coding, Varint64Overflow) {
   uint64_t result;
   std::string input("\x81\x82\x83\x84\x85\x81\x82\x83\x84\x85\x11");
-  ASSERT_TRUE(GetVarint64Ptr(input.data(), input.data() + input.size(), &result)
-              == nullptr);
+  ASSERT_TRUE(GetVarint64Ptr(input.data(), input.data() + input.size(),
+                             &result) == nullptr);
 }
 
 TEST(Coding, Varint64Truncation) {
@@ -166,8 +166,8 @@ TEST(Coding, Varint64Truncation) {
   for (size_t len = 0; len < s.size() - 1; len++) {
     ASSERT_TRUE(GetVarint64Ptr(s.data(), s.data() + len, &result) == nullptr);
   }
-  ASSERT_TRUE(
-      GetVarint64Ptr(s.data(), s.data() + s.size(), &result) != nullptr);
+  ASSERT_TRUE(GetVarint64Ptr(s.data(), s.data() + s.size(), &result) !=
+              nullptr);
   ASSERT_EQ(large_value, result);
 }
 
@@ -191,8 +191,6 @@ TEST(Coding, Strings) {
   ASSERT_EQ("", input.ToString());
 }
 
-}  // namespace leveldb
+} // namespace leveldb
 
-int main(int argc, char** argv) {
-  return leveldb::test::RunAllTests();
-}
+int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }

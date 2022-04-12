@@ -12,15 +12,15 @@ namespace leveldb {
 // Tag numbers for serialized VersionEdit.  These numbers are written to
 // disk and should not be changed.
 enum Tag {
-  kComparator           = 1,
-  kLogNumber            = 2,
-  kNextFileNumber       = 3,
-  kLastSequence         = 4,
-  kCompactPointer       = 5,
-  kDeletedFile          = 6,
-  kNewFile              = 7,
+  kComparator = 1,
+  kLogNumber = 2,
+  kNextFileNumber = 3,
+  kLastSequence = 4,
+  kCompactPointer = 5,
+  kDeletedFile = 6,
+  kNewFile = 7,
   // 8 was used for large value refs
-  kPrevLogNumber        = 9
+  kPrevLogNumber = 9
 };
 
 void VersionEdit::Clear() {
@@ -38,7 +38,7 @@ void VersionEdit::Clear() {
   new_files_.clear();
 }
 
-void VersionEdit::EncodeTo(std::string* dst) const {
+void VersionEdit::EncodeTo(std::string *dst) const {
   if (has_comparator_) {
     PutVarint32(dst, kComparator);
     PutLengthPrefixedSlice(dst, comparator_);
@@ -62,22 +62,21 @@ void VersionEdit::EncodeTo(std::string* dst) const {
 
   for (size_t i = 0; i < compact_pointers_.size(); i++) {
     PutVarint32(dst, kCompactPointer);
-    PutVarint32(dst, compact_pointers_[i].first);  // level
+    PutVarint32(dst, compact_pointers_[i].first); // level
     PutLengthPrefixedSlice(dst, compact_pointers_[i].second.Encode());
   }
 
   for (DeletedFileSet::const_iterator iter = deleted_files_.begin();
-       iter != deleted_files_.end();
-       ++iter) {
+       iter != deleted_files_.end(); ++iter) {
     PutVarint32(dst, kDeletedFile);
-    PutVarint32(dst, iter->first);   // level
-    PutVarint64(dst, iter->second);  // file number
+    PutVarint32(dst, iter->first);  // level
+    PutVarint64(dst, iter->second); // file number
   }
 
   for (size_t i = 0; i < new_files_.size(); i++) {
-    const FileMetaData& f = new_files_[i].second;
+    const FileMetaData &f = new_files_[i].second;
     PutVarint32(dst, kNewFile);
-    PutVarint32(dst, new_files_[i].first);  // level
+    PutVarint32(dst, new_files_[i].first); // level
     PutVarint64(dst, f.number);
     PutVarint64(dst, f.file_size);
     PutLengthPrefixedSlice(dst, f.smallest.Encode());
@@ -85,7 +84,7 @@ void VersionEdit::EncodeTo(std::string* dst) const {
   }
 }
 
-static bool GetInternalKey(Slice* input, InternalKey* dst) {
+static bool GetInternalKey(Slice *input, InternalKey *dst) {
   Slice str;
   if (GetLengthPrefixedSlice(input, &str)) {
     dst->DecodeFrom(str);
@@ -95,10 +94,9 @@ static bool GetInternalKey(Slice* input, InternalKey* dst) {
   }
 }
 
-static bool GetLevel(Slice* input, int* level) {
+static bool GetLevel(Slice *input, int *level) {
   uint32_t v;
-  if (GetVarint32(input, &v) &&
-      v < config::kNumLevels) {
+  if (GetVarint32(input, &v) && v < config::kNumLevels) {
     *level = v;
     return true;
   } else {
@@ -106,10 +104,10 @@ static bool GetLevel(Slice* input, int* level) {
   }
 }
 
-Status VersionEdit::DecodeFrom(const Slice& src) {
+Status VersionEdit::DecodeFrom(const Slice &src) {
   Clear();
   Slice input = src;
-  const char* msg = nullptr;
+  const char *msg = nullptr;
   uint32_t tag;
 
   // Temporary storage for parsing
@@ -121,80 +119,77 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
 
   while (msg == nullptr && GetVarint32(&input, &tag)) {
     switch (tag) {
-      case kComparator:
-        if (GetLengthPrefixedSlice(&input, &str)) {
-          comparator_ = str.ToString();
-          has_comparator_ = true;
-        } else {
-          msg = "comparator name";
-        }
-        break;
+    case kComparator:
+      if (GetLengthPrefixedSlice(&input, &str)) {
+        comparator_ = str.ToString();
+        has_comparator_ = true;
+      } else {
+        msg = "comparator name";
+      }
+      break;
 
-      case kLogNumber:
-        if (GetVarint64(&input, &log_number_)) {
-          has_log_number_ = true;
-        } else {
-          msg = "log number";
-        }
-        break;
+    case kLogNumber:
+      if (GetVarint64(&input, &log_number_)) {
+        has_log_number_ = true;
+      } else {
+        msg = "log number";
+      }
+      break;
 
-      case kPrevLogNumber:
-        if (GetVarint64(&input, &prev_log_number_)) {
-          has_prev_log_number_ = true;
-        } else {
-          msg = "previous log number";
-        }
-        break;
+    case kPrevLogNumber:
+      if (GetVarint64(&input, &prev_log_number_)) {
+        has_prev_log_number_ = true;
+      } else {
+        msg = "previous log number";
+      }
+      break;
 
-      case kNextFileNumber:
-        if (GetVarint64(&input, &next_file_number_)) {
-          has_next_file_number_ = true;
-        } else {
-          msg = "next file number";
-        }
-        break;
+    case kNextFileNumber:
+      if (GetVarint64(&input, &next_file_number_)) {
+        has_next_file_number_ = true;
+      } else {
+        msg = "next file number";
+      }
+      break;
 
-      case kLastSequence:
-        if (GetVarint64(&input, &last_sequence_)) {
-          has_last_sequence_ = true;
-        } else {
-          msg = "last sequence number";
-        }
-        break;
+    case kLastSequence:
+      if (GetVarint64(&input, &last_sequence_)) {
+        has_last_sequence_ = true;
+      } else {
+        msg = "last sequence number";
+      }
+      break;
 
-      case kCompactPointer:
-        if (GetLevel(&input, &level) &&
-            GetInternalKey(&input, &key)) {
-          compact_pointers_.push_back(std::make_pair(level, key));
-        } else {
-          msg = "compaction pointer";
-        }
-        break;
+    case kCompactPointer:
+      if (GetLevel(&input, &level) && GetInternalKey(&input, &key)) {
+        compact_pointers_.push_back(std::make_pair(level, key));
+      } else {
+        msg = "compaction pointer";
+      }
+      break;
 
-      case kDeletedFile:
-        if (GetLevel(&input, &level) &&
-            GetVarint64(&input, &number)) {
-          deleted_files_.insert(std::make_pair(level, number));
-        } else {
-          msg = "deleted file";
-        }
-        break;
+    case kDeletedFile:
+      if (GetLevel(&input, &level) && GetVarint64(&input, &number)) {
+        deleted_files_.insert(std::make_pair(level, number));
+      } else {
+        msg = "deleted file";
+      }
+      break;
 
-      case kNewFile:
-        if (GetLevel(&input, &level) &&
-            GetVarint64(&input, &f.number) &&
-            GetVarint64(&input, &f.file_size) &&
-            GetInternalKey(&input, &f.smallest) &&
-            GetInternalKey(&input, &f.largest)) {
-          new_files_.push_back(std::make_pair(level, f));
-        } else {
-          msg = "new-file entry";
-        }
-        break;
+    case kNewFile:
+      if (GetLevel(&input, &level) && GetVarint64(&input, &f.number) &&
+          GetVarint64(&input, &f.file_size) &&
+          GetInternalKey(&input, &f.smallest) &&
+          GetInternalKey(&input, &f.largest)) {
+        new_files_.push_back(std::make_pair(level, f));
+      } else {
+        msg = "new-file entry";
+      }
+      break;
 
-      default:
-        msg = "unknown tag";
-        break;
+    default:
+      msg = "unknown tag";
+      break;
     }
   }
 
@@ -239,15 +234,14 @@ std::string VersionEdit::DebugString() const {
     r.append(compact_pointers_[i].second.DebugString());
   }
   for (DeletedFileSet::const_iterator iter = deleted_files_.begin();
-       iter != deleted_files_.end();
-       ++iter) {
+       iter != deleted_files_.end(); ++iter) {
     r.append("\n  DeleteFile: ");
     AppendNumberTo(&r, iter->first);
     r.append(" ");
     AppendNumberTo(&r, iter->second);
   }
   for (size_t i = 0; i < new_files_.size(); i++) {
-    const FileMetaData& f = new_files_[i].second;
+    const FileMetaData &f = new_files_[i].second;
     r.append("\n  AddFile: ");
     AppendNumberTo(&r, new_files_[i].first);
     r.append(" ");
@@ -263,4 +257,4 @@ std::string VersionEdit::DebugString() const {
   return r;
 }
 
-}  // namespace leveldb
+} // namespace leveldb

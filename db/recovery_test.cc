@@ -16,7 +16,7 @@
 namespace leveldb {
 
 class RecoveryTest {
- public:
+public:
   RecoveryTest() : env_(Env::Default()), db_(nullptr) {
     dbname_ = test::TmpDir() + "/recovery_test";
     DestroyDB(dbname_, Options());
@@ -28,11 +28,11 @@ class RecoveryTest {
     DestroyDB(dbname_, Options());
   }
 
-  DBImpl* dbfull() const { return reinterpret_cast<DBImpl*>(db_); }
-  Env* env() const { return env_; }
+  DBImpl *dbfull() const { return reinterpret_cast<DBImpl *>(db_); }
+  Env *env() const { return env_; }
 
   bool CanAppend() {
-    WritableFile* tmp;
+    WritableFile *tmp;
     Status s = env_->NewAppendableFile(CurrentFileName(dbname_), &tmp);
     delete tmp;
     if (s.IsNotSupportedError()) {
@@ -47,13 +47,13 @@ class RecoveryTest {
     db_ = nullptr;
   }
 
-  Status OpenWithStatus(Options* options = nullptr) {
+  Status OpenWithStatus(Options *options = nullptr) {
     Close();
     Options opts;
     if (options != nullptr) {
       opts = *options;
     } else {
-      opts.reuse_logs = true;  // TODO(sanjay): test both ways
+      opts.reuse_logs = true; // TODO(sanjay): test both ways
       opts.create_if_missing = true;
     }
     if (opts.env == nullptr) {
@@ -62,16 +62,16 @@ class RecoveryTest {
     return DB::Open(opts, dbname_, &db_);
   }
 
-  void Open(Options* options = nullptr) {
+  void Open(Options *options = nullptr) {
     ASSERT_OK(OpenWithStatus(options));
     ASSERT_EQ(1, NumLogs());
   }
 
-  Status Put(const std::string& k, const std::string& v) {
+  Status Put(const std::string &k, const std::string &v) {
     return db_->Put(WriteOptions(), k, v);
   }
 
-  std::string Get(const std::string& k, const Snapshot* snapshot = nullptr) {
+  std::string Get(const std::string &k, const Snapshot *snapshot = nullptr) {
     std::string result;
     Status s = db_->Get(ReadOptions(), k, &result);
     if (s.IsNotFound()) {
@@ -86,15 +86,13 @@ class RecoveryTest {
     std::string current;
     ASSERT_OK(ReadFileToString(env_, CurrentFileName(dbname_), &current));
     size_t len = current.size();
-    if (len > 0 && current[len-1] == '\n') {
+    if (len > 0 && current[len - 1] == '\n') {
       current.resize(len - 1);
     }
     return dbname_ + "/" + current;
   }
 
-  std::string LogName(uint64_t number) {
-    return LogFileName(dbname_, number);
-  }
+  std::string LogName(uint64_t number) { return LogFileName(dbname_, number); }
 
   size_t DeleteLogFiles() {
     std::vector<uint64_t> logs = GetFiles(kLogFile);
@@ -104,13 +102,9 @@ class RecoveryTest {
     return logs.size();
   }
 
-  void DeleteManifestFile() {
-    ASSERT_OK(env_->DeleteFile(ManifestFileName()));
-  }
+  void DeleteManifestFile() { ASSERT_OK(env_->DeleteFile(ManifestFileName())); }
 
-  uint64_t FirstLogFile() {
-    return GetFiles(kLogFile)[0];
-  }
+  uint64_t FirstLogFile() { return GetFiles(kLogFile)[0]; }
 
   std::vector<uint64_t> GetFiles(FileType t) {
     std::vector<std::string> filenames;
@@ -126,28 +120,22 @@ class RecoveryTest {
     return result;
   }
 
-  int NumLogs() {
-    return GetFiles(kLogFile).size();
-  }
+  int NumLogs() { return GetFiles(kLogFile).size(); }
 
-  int NumTables() {
-    return GetFiles(kTableFile).size();
-  }
+  int NumTables() { return GetFiles(kTableFile).size(); }
 
-  uint64_t FileSize(const std::string& fname) {
+  uint64_t FileSize(const std::string &fname) {
     uint64_t result;
     ASSERT_OK(env_->GetFileSize(fname, &result)) << fname;
     return result;
   }
 
-  void CompactMemTable() {
-    dbfull()->TEST_CompactMemTable();
-  }
+  void CompactMemTable() { dbfull()->TEST_CompactMemTable(); }
 
   // Directly construct a log file that sets key to val.
   void MakeLogFile(uint64_t lognum, SequenceNumber seq, Slice key, Slice val) {
     std::string fname = LogFileName(dbname_, lognum);
-    WritableFile* file;
+    WritableFile *file;
     ASSERT_OK(env_->NewWritableFile(fname, &file));
     log::Writer writer(file);
     WriteBatch batch;
@@ -158,10 +146,10 @@ class RecoveryTest {
     delete file;
   }
 
- private:
+private:
   std::string dbname_;
-  Env* env_;
-  DB* db_;
+  Env *env_;
+  DB *db_;
 };
 
 TEST(RecoveryTest, ManifestReused) {
@@ -192,9 +180,9 @@ TEST(RecoveryTest, LargeManifestCompacted) {
   // Pad with zeroes to make manifest file very big.
   {
     uint64_t len = FileSize(old_manifest);
-    WritableFile* file;
+    WritableFile *file;
     ASSERT_OK(env()->NewAppendableFile(old_manifest, &file));
-    std::string zeroes(3*1048576 - static_cast<size_t>(len), 0);
+    std::string zeroes(3 * 1048576 - static_cast<size_t>(len), 0);
     ASSERT_OK(file->Append(zeroes));
     ASSERT_OK(file->Flush());
     delete file;
@@ -267,7 +255,7 @@ TEST(RecoveryTest, MultipleMemTables) {
   // Force creation of multiple memtables by reducing the write buffer size.
   Options opt;
   opt.reuse_logs = true;
-  opt.write_buffer_size = (kNum*100) / 2;
+  opt.write_buffer_size = (kNum * 100) / 2;
   Open(&opt);
   ASSERT_LE(2, NumTables());
   ASSERT_EQ(1, NumLogs());
@@ -286,16 +274,16 @@ TEST(RecoveryTest, MultipleLogFiles) {
 
   // Make a bunch of uncompacted log files.
   uint64_t old_log = FirstLogFile();
-  MakeLogFile(old_log+1, 1000, "hello", "world");
-  MakeLogFile(old_log+2, 1001, "hi", "there");
-  MakeLogFile(old_log+3, 1002, "foo", "bar2");
+  MakeLogFile(old_log + 1, 1000, "hello", "world");
+  MakeLogFile(old_log + 2, 1001, "hi", "there");
+  MakeLogFile(old_log + 3, 1002, "foo", "bar2");
 
   // Recover and check that all log files were processed.
   Open();
   ASSERT_LE(1, NumTables());
   ASSERT_EQ(1, NumLogs());
   uint64_t new_log = FirstLogFile();
-  ASSERT_LE(old_log+3, new_log);
+  ASSERT_LE(old_log + 3, new_log);
   ASSERT_EQ("bar2", Get("foo"));
   ASSERT_EQ("world", Get("hello"));
   ASSERT_EQ("there", Get("hi"));
@@ -313,7 +301,7 @@ TEST(RecoveryTest, MultipleLogFiles) {
 
   // Check that introducing an older log file does not cause it to be re-read.
   Close();
-  MakeLogFile(old_log+1, 2000, "hello", "stale write");
+  MakeLogFile(old_log + 1, 2000, "hello", "stale write");
   Open();
   ASSERT_LE(1, NumTables());
   ASSERT_EQ(1, NumLogs());
@@ -334,8 +322,6 @@ TEST(RecoveryTest, ManifestMissing) {
   ASSERT_TRUE(status.IsCorruption());
 }
 
-}  // namespace leveldb
+} // namespace leveldb
 
-int main(int argc, char** argv) {
-  return leveldb::test::RunAllTests();
-}
+int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }

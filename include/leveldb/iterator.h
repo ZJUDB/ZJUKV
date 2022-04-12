@@ -22,11 +22,11 @@
 namespace leveldb {
 
 class LEVELDB_EXPORT Iterator {
- public:
+public:
   Iterator();
 
-  Iterator(const Iterator&) = delete;
-  Iterator& operator=(const Iterator&) = delete;
+  Iterator(const Iterator &) = delete;
+  Iterator &operator=(const Iterator &) = delete;
 
   virtual ~Iterator();
 
@@ -45,7 +45,7 @@ class LEVELDB_EXPORT Iterator {
   // Position at the first key in the source that is at or past target.
   // The iterator is Valid() after this call iff the source contains
   // an entry that comes at or past target.
-  virtual void Seek(const Slice& target) = 0;
+  virtual void Seek(const Slice &target) = 0;
 
   // Moves to the next entry in the source.  After this call, Valid() is
   // true iff the iterator was not positioned at the last entry in the source.
@@ -77,33 +77,36 @@ class LEVELDB_EXPORT Iterator {
   //
   // Note that unlike all of the preceding methods, this method is
   // not abstract and therefore clients should not override it.
-  using CleanupFunction = void (*)(void* arg1, void* arg2);
-  void RegisterCleanup(CleanupFunction function, void* arg1, void* arg2);
+  using CleanupFunction = void (*)(void *arg1, void *arg2);
+  void RegisterCleanup(CleanupFunction function, void *arg1, void *arg2);
 
- private:
+private:
   // Cleanup functions are stored in a single-linked list.
   // The list's head node is inlined in the iterator.
   struct CleanupNode {
     // The head node is used if the function pointer is not null.
     CleanupFunction function;
-    void* arg1;
-    void* arg2;
-    CleanupNode* next;
+    void *arg1;
+    void *arg2;
+    CleanupNode *next;
 
     // True if the node is not used. Only head nodes might be unused.
     bool IsEmpty() const { return function == nullptr; }
     // Invokes the cleanup function.
-    void Run() { assert(function != nullptr); (*function)(arg1, arg2); }
+    void Run() {
+      assert(function != nullptr);
+      (*function)(arg1, arg2);
+    }
   };
   CleanupNode cleanup_head_;
 };
 
 // Return an empty iterator (yields nothing).
-LEVELDB_EXPORT Iterator* NewEmptyIterator();
+LEVELDB_EXPORT Iterator *NewEmptyIterator();
 
 // Return an empty iterator with the specified status.
-LEVELDB_EXPORT Iterator* NewErrorIterator(const Status& status);
+LEVELDB_EXPORT Iterator *NewErrorIterator(const Status &status);
 
-}  // namespace leveldb
+} // namespace leveldb
 
-#endif  // STORAGE_LEVELDB_INCLUDE_ITERATOR_H_
+#endif // STORAGE_LEVELDB_INCLUDE_ITERATOR_H_

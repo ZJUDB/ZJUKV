@@ -1,24 +1,24 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
-#include <cmath>
-#include <unordered_set>
-#include <sstream>
-#include <sys/types.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "leveldb/cache.h"
 #include "leveldb/db.h"
 #include "leveldb/env.h"
 #include "leveldb/filter_policy.h"
 #include "leveldb/write_batch.h"
-#include "silkstore/silkstore_impl.h"
 #include "port/port.h"
+#include "silkstore/silkstore_impl.h"
 #include "util/crc32c.h"
 #include "util/histogram.h"
 #include "util/mutexlock.h"
 #include "util/random.h"
 #include "util/testutil.h"
+#include <cmath>
+#include <sstream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <unordered_set>
 
 // Comma-separated list of operations to run in the specified order
 //   Actual benchmarks:
@@ -43,25 +43,24 @@
 //      stats       -- Print DB stats
 //      sstables    -- Print sstable info
 //      heapprofile -- Dump a heap profile (if supported by this port)
-static const char* FLAGS_benchmarks =
+static const char *FLAGS_benchmarks =
     "fillseq,"
     "fillsync,"
     "fillrandom,"
     "overwrite,"
     //"readrandom,"
-    "readrandomsmall,"  // Extra run to allow previous compactions to quiesce
+    "readrandomsmall," // Extra run to allow previous compactions to quiesce
     "readseq,"
     "readreverse,"
     "compact,"
-  //  "readrandom,"
+    //  "readrandom,"
     "readseq,"
     "readreverse,"
     "fill100K,"
     "crc32c,"
     "snappycomp,"
     "snappyuncomp,"
-    "acquireload,"
-    ;
+    "acquireload,";
 
 // Number of key/values to place in database
 static int FLAGS_num = 100000000;
@@ -117,13 +116,13 @@ static bool FLAGS_use_existing_db = false;
 static bool FLAGS_reuse_logs = false;
 
 // Use the db with the following name.
-static const char* FLAGS_db = nullptr;
+static const char *FLAGS_db = nullptr;
 
 // Test db impl type: leveldb/silkstore
-static const char* FLAGS_db_type = "silkstore";
+static const char *FLAGS_db_type = "silkstore";
 
 // Mixed workload spec
-static const char* FLAGS_mixed_wl_spec = nullptr;
+static const char *FLAGS_mixed_wl_spec = nullptr;
 
 static int FLAGS_num_ops_in_mixed_wl = 0;
 
@@ -137,15 +136,15 @@ static double FLAGS_log_dataset_ratio = 2.0;
 namespace leveldb {
 
 namespace {
-leveldb::Env* g_env = nullptr;
+leveldb::Env *g_env = nullptr;
 
 // Helper for quickly generating random data.
 class RandomGenerator {
- private:
+private:
   std::string data_;
   int pos_;
 
- public:
+public:
   RandomGenerator() {
     // We use a limited amount of data over and over again and ensure
     // that it is larger than the compression window (32KB), and also
@@ -178,15 +177,16 @@ static Slice TrimSpace(Slice s) {
     start++;
   }
   size_t limit = s.size();
-  while (limit > start && isspace(s[limit-1])) {
+  while (limit > start && isspace(s[limit - 1])) {
     limit--;
   }
   return Slice(s.data() + start, limit - start);
 }
 #endif
 
-static void AppendWithSpace(std::string* str, Slice msg) {
-  if (msg.empty()) return;
+static void AppendWithSpace(std::string *str, Slice msg) {
+  if (msg.empty())
+    return;
   if (!str->empty()) {
     str->push_back(' ');
   }
@@ -194,7 +194,7 @@ static void AppendWithSpace(std::string* str, Slice msg) {
 }
 
 class Stats {
- private:
+private:
   double start_;
   double finish_;
   double seconds_;
@@ -207,12 +207,11 @@ class Stats {
   bool report_current = false;
   double last_current_report = 0;
   int done_since_last_current_report = 0;
- public:
+
+public:
   Stats() { Start(); }
 
-  void EnableReportCurrent() {
-      report_current = true;
-  }
+  void EnableReportCurrent() { report_current = true; }
 
   void Start() {
     next_report_ = 100;
@@ -226,16 +225,19 @@ class Stats {
     message_.clear();
   }
 
-  void Merge(const Stats& other) {
+  void Merge(const Stats &other) {
     hist_.Merge(other.hist_);
     done_ += other.done_;
     bytes_ += other.bytes_;
     seconds_ += other.seconds_;
-    if (other.start_ < start_) start_ = other.start_;
-    if (other.finish_ > finish_) finish_ = other.finish_;
+    if (other.start_ < start_)
+      start_ = other.start_;
+    if (other.finish_ > finish_)
+      finish_ = other.finish_;
 
     // Just keep the messages from one thread
-    if (message_.empty()) message_ = other.message_;
+    if (message_.empty())
+      message_ = other.message_;
   }
 
   void Stop() {
@@ -243,9 +245,7 @@ class Stats {
     seconds_ = (finish_ - start_) * 1e-6;
   }
 
-  void AddMessage(Slice msg) {
-    AppendWithSpace(&message_, msg);
-  }
+  void AddMessage(Slice msg) { AppendWithSpace(&message_, msg); }
 
   void FinishedSingleOp() {
     if (FLAGS_histogram) {
@@ -261,36 +261,42 @@ class Stats {
 
     done_++;
     if (done_ >= next_report_) {
-      if      (next_report_ < 1000)   next_report_ += 100;
-      else if (next_report_ < 5000)   next_report_ += 500;
-      else if (next_report_ < 10000)  next_report_ += 1000;
-      else if (next_report_ < 50000)  next_report_ += 5000;
-      else if (next_report_ < 100000) next_report_ += 10000;
-      else if (next_report_ < 500000) next_report_ += 50000;
-      else                            next_report_ += 100000;
+      if (next_report_ < 1000)
+        next_report_ += 100;
+      else if (next_report_ < 5000)
+        next_report_ += 500;
+      else if (next_report_ < 10000)
+        next_report_ += 1000;
+      else if (next_report_ < 50000)
+        next_report_ += 5000;
+      else if (next_report_ < 100000)
+        next_report_ += 10000;
+      else if (next_report_ < 500000)
+        next_report_ += 50000;
+      else
+        next_report_ += 100000;
       fprintf(stderr, "... finished %d ops%30s\r", done_, "");
       fflush(stderr);
     }
     if (report_current) {
-        ++done_since_last_current_report;
-        double elapsed = (g_env->NowMicros() - last_current_report);
-        if (elapsed > 5 * 1e6) {
-            double latency = elapsed / done_since_last_current_report;
-            fprintf(stdout, "%.2f\n", latency);
-            done_since_last_current_report = 0;
-            last_current_report = g_env->NowMicros();
-        }
+      ++done_since_last_current_report;
+      double elapsed = (g_env->NowMicros() - last_current_report);
+      if (elapsed > 5 * 1e6) {
+        double latency = elapsed / done_since_last_current_report;
+        fprintf(stdout, "%.2f\n", latency);
+        done_since_last_current_report = 0;
+        last_current_report = g_env->NowMicros();
+      }
     }
   }
 
-  void AddBytes(int64_t n) {
-    bytes_ += n;
-  }
+  void AddBytes(int64_t n) { bytes_ += n; }
 
-  void Report(const Slice& name) {
+  void Report(const Slice &name) {
     // Pretend at least one op was done in case we are running a benchmark
     // that does not call FinishedSingleOp().
-    if (done_ < 1) done_ = 1;
+    if (done_ < 1)
+      done_ = 1;
 
     std::string extra;
     if (bytes_ > 0) {
@@ -304,11 +310,8 @@ class Stats {
     }
     AppendWithSpace(&extra, message_);
 
-    fprintf(stdout, "%-12s : %11.3f micros/op;%s%s\n",
-            name.ToString().c_str(),
-            seconds_ * 1e6 / done_,
-            (extra.empty() ? "" : " "),
-            extra.c_str());
+    fprintf(stdout, "%-12s : %11.3f micros/op;%s%s\n", name.ToString().c_str(),
+            seconds_ * 1e6 / done_, (extra.empty() ? "" : " "), extra.c_str());
     if (FLAGS_histogram) {
       fprintf(stdout, "Microseconds per op:\n%s\n", hist_.ToString().c_str());
     }
@@ -333,167 +336,173 @@ struct SharedState {
   bool start GUARDED_BY(mu);
 
   SharedState(int total)
-      : cv(&mu), total(total), num_initialized(0), num_done(0), start(false) { }
+      : cv(&mu), total(total), num_initialized(0), num_done(0), start(false) {}
 };
 
 // Per-thread state for concurrent executions of the same benchmark.
 struct ThreadState {
-  int tid;             // 0..n-1 when running in n threads
-  Random rand;         // Has different seeds for different threads
+  int tid;     // 0..n-1 when running in n threads
+  Random rand; // Has different seeds for different threads
   Stats stats;
-  SharedState* shared;
+  SharedState *shared;
 
-  ThreadState(int index)
-      : tid(index),
-        rand(1000 + index) {
-  }
+  ThreadState(int index) : tid(index), rand(1000 + index) {}
 };
 
-}  // namespace
-
+} // namespace
 
 class Workload {
 public:
-    Workload(int tid, int weight) : tid(tid), weight(weight) {}
-    virtual void work(ThreadState * thread)=0;
-    virtual void fillone(ThreadState * thread)=0;
-    virtual ~Workload(){}
-    virtual size_t size()const=0;
-    int Weight() { return weight; }
+  Workload(int tid, int weight) : tid(tid), weight(weight) {}
+  virtual void work(ThreadState *thread) = 0;
+  virtual void fillone(ThreadState *thread) = 0;
+  virtual ~Workload() {}
+  virtual size_t size() const = 0;
+  int Weight() { return weight; }
+
 protected:
-    int tid;
-    int weight;
+  int tid;
+  int weight;
 };
 
 class ReadWriteWorkload : public Workload {
 public:
-    ReadWriteWorkload(DB * db, int tid, int table_size, int write_ratio_in_percent, int table_weight): Workload(tid, table_weight), db_(db), table_size(table_size), write_ratio_in_percent(write_ratio_in_percent), value_size_(FLAGS_value_size) {}
+  ReadWriteWorkload(DB *db, int tid, int table_size, int write_ratio_in_percent,
+                    int table_weight)
+      : Workload(tid, table_weight), db_(db), table_size(table_size),
+        write_ratio_in_percent(write_ratio_in_percent),
+        value_size_(FLAGS_value_size) {}
 
-    void work(ThreadState * thread) override {
-        const int k = thread->rand.Next() % table_size;
-        snprintf(key, sizeof(key), "%d.%016d", tid, k);
-        if (thread->rand.Next() % 100 < write_ratio_in_percent) {
-            batch.Clear();
-            batch.Put(key, gen.Generate(value_size_));
-            bytes += value_size_ + strlen(key);
-            s = db_->Write(write_options_, &batch);
-            if (!s.ok()) {
-                fprintf(stderr, "put error: %s\n", s.ToString().c_str());
-                exit(1);
-            }
-        } else {
-            if (db_->Get(options, key, &value).ok()) {
-                found++;
-            }
-        }
-
-        thread->stats.FinishedSingleOp();
+  void work(ThreadState *thread) override {
+    const int k = thread->rand.Next() % table_size;
+    snprintf(key, sizeof(key), "%d.%016d", tid, k);
+    if (thread->rand.Next() % 100 < write_ratio_in_percent) {
+      batch.Clear();
+      batch.Put(key, gen.Generate(value_size_));
+      bytes += value_size_ + strlen(key);
+      s = db_->Write(write_options_, &batch);
+      if (!s.ok()) {
+        fprintf(stderr, "put error: %s\n", s.ToString().c_str());
+        exit(1);
+      }
+    } else {
+      if (db_->Get(options, key, &value).ok()) {
+        found++;
+      }
     }
 
-    void fillone(ThreadState * thread) override {
-        const int k = thread->rand.Next() % table_size;
-        snprintf(key, sizeof(key), "%d.%016d", tid, k);
-        batch.Clear();
-        batch.Put(key, gen.Generate(value_size_));
-        bytes += value_size_ + strlen(key);
-        s = db_->Write(write_options_, &batch);
-        if (!s.ok()) {
-            fprintf(stderr, "put error: %s\n", s.ToString().c_str());
-            exit(1);
-        }
-        thread->stats.FinishedSingleOp();
-    }
+    thread->stats.FinishedSingleOp();
+  }
 
-    size_t size() const override { return table_size; }
+  void fillone(ThreadState *thread) override {
+    const int k = thread->rand.Next() % table_size;
+    snprintf(key, sizeof(key), "%d.%016d", tid, k);
+    batch.Clear();
+    batch.Put(key, gen.Generate(value_size_));
+    bytes += value_size_ + strlen(key);
+    s = db_->Write(write_options_, &batch);
+    if (!s.ok()) {
+      fprintf(stderr, "put error: %s\n", s.ToString().c_str());
+      exit(1);
+    }
+    thread->stats.FinishedSingleOp();
+  }
+
+  size_t size() const override { return table_size; }
+
 protected:
-    DB * db_;
-    char key[100];
-    ReadOptions options;
-    std::string value;
-    int found = 0;
-    int table_size;
-    int write_ratio_in_percent;
-    WriteBatch batch;
-    RandomGenerator gen;
-    size_t bytes = 0;
-    size_t value_size_ = 0;
-    Status s;
-    WriteOptions write_options_;
+  DB *db_;
+  char key[100];
+  ReadOptions options;
+  std::string value;
+  int found = 0;
+  int table_size;
+  int write_ratio_in_percent;
+  WriteBatch batch;
+  RandomGenerator gen;
+  size_t bytes = 0;
+  size_t value_size_ = 0;
+  Status s;
+  WriteOptions write_options_;
 };
 //
-//class ReadOnlyWorkload : public Workload {
-//public:
+// class ReadOnlyWorkload : public Workload {
+// public:
 //    ReadOnlyWorkload(DB* db, int table_size): rw(db, table_size, 0) {}
 //
 //    void work(ThreadState * thread, int tid) override {
 //        rw.work(thread, tid);
 //    }
-//private:
+// private:
 //    ReadWriteWorkload rw;
 //};
 //
 ///**
 // * 5% writes, 95% reads.
 // */
-//class ReadMostlyWorkload : public Workload {
-//public:
+// class ReadMostlyWorkload : public Workload {
+// public:
 //    ReadMostlyWorkload(DB* db, int table_size): rw(db, table_size, 5) {}
 //
 //    void work(ThreadState * thread, int tid) override {
 //        rw.work(thread, tid);
 //    }
-//private:
+// private:
 //    ReadWriteWorkload rw;
 //};
 ///**
 // * 100% writes
 // */
-//class WriteOnlyWorkload : public Workload {
-//public:
+// class WriteOnlyWorkload : public Workload {
+// public:
 //    WriteOnlyWorkload(DB* db, int table_size): rw(db, table_size, 100) {}
 //
 //    void work(ThreadState * thread, int tid) override {
 //        rw.work(thread, tid);
 //    }
-//private:
+// private:
 //    ReadWriteWorkload rw;
 //};
 
 class WorkloadSelector {
 public:
-    WorkloadSelector(const std::vector<Workload*> workloads) : workloads(workloads){}
-    virtual ~WorkloadSelector(){}
-    virtual int Select(ThreadState * thread)=0;
+  WorkloadSelector(const std::vector<Workload *> workloads)
+      : workloads(workloads) {}
+  virtual ~WorkloadSelector() {}
+  virtual int Select(ThreadState *thread) = 0;
 
 protected:
-    std::vector<Workload*> workloads;
+  std::vector<Workload *> workloads;
 };
 
-class RandomWorkloadSelector: public WorkloadSelector {
+class RandomWorkloadSelector : public WorkloadSelector {
 public:
-    RandomWorkloadSelector(const std::vector<Workload*> workloads) : WorkloadSelector(workloads){}
+  RandomWorkloadSelector(const std::vector<Workload *> workloads)
+      : WorkloadSelector(workloads) {}
 
-    int Select(ThreadState * thread) override{
-        return thread->rand.Next() % workloads.size();
-    }
+  int Select(ThreadState *thread) override {
+    return thread->rand.Next() % workloads.size();
+  }
 };
 
-class WeightedRandomWorkloadSelector: public WorkloadSelector {
+class WeightedRandomWorkloadSelector : public WorkloadSelector {
 public:
-    WeightedRandomWorkloadSelector(const std::vector<Workload*> workloads) : WorkloadSelector(workloads){
-        for (int i = 0; i < workloads.size(); ++i) {
-            int weight = workloads[i]->Weight();
-            for (int j = 0; j < weight; ++j)
-                dice.push_back(i);
-        }
-        std::random_shuffle(dice.begin(), dice.end());
+  WeightedRandomWorkloadSelector(const std::vector<Workload *> workloads)
+      : WorkloadSelector(workloads) {
+    for (int i = 0; i < workloads.size(); ++i) {
+      int weight = workloads[i]->Weight();
+      for (int j = 0; j < weight; ++j)
+        dice.push_back(i);
     }
+    std::random_shuffle(dice.begin(), dice.end());
+  }
 
-    int Select(ThreadState * thread) override {
-        return dice[thread->rand.Next() % dice.size()];
-    }
+  int Select(ThreadState *thread) override {
+    return dice[thread->rand.Next() % dice.size()];
+  }
+
 private:
-    std::vector<int> dice;
+  std::vector<int> dice;
 };
 
 // workload mixture spec syntax:
@@ -501,63 +510,70 @@ private:
 //
 class WorkloadMixture {
 private:
-    std::vector<Workload*> workloads;
-    WorkloadSelector * selector;
+  std::vector<Workload *> workloads;
+  WorkloadSelector *selector;
+
 public:
-    WorkloadMixture(const std::vector<Workload*> workloads, WorkloadSelector * selector) : workloads(workloads), selector(selector) {}
+  WorkloadMixture(const std::vector<Workload *> workloads,
+                  WorkloadSelector *selector)
+      : workloads(workloads), selector(selector) {}
 
-    void work(ThreadState * thread) {
-        int wid = selector->Select(thread);
-        workloads[wid]->work(thread);
-    }
+  void work(ThreadState *thread) {
+    int wid = selector->Select(thread);
+    workloads[wid]->work(thread);
+  }
 
-    void fill(ThreadState * thread) {
-        int wid = selector->Select(thread);
-        workloads[wid]->fillone(thread);
-    }
+  void fill(ThreadState *thread) {
+    int wid = selector->Select(thread);
+    workloads[wid]->fillone(thread);
+  }
 
-    static std::vector<std::string> Split(const std::string &s, char delim) {
-        std::stringstream ss(s);
-        std::string item;
-        std::vector<std::string> elems;
-        while (std::getline(ss, item, delim)) {
-            elems.push_back(std::move(item)); // if C++11 (based on comment from @mchiasson)
-        }
-        return elems;
+  static std::vector<std::string> Split(const std::string &s, char delim) {
+    std::stringstream ss(s);
+    std::string item;
+    std::vector<std::string> elems;
+    while (std::getline(ss, item, delim)) {
+      elems.push_back(
+          std::move(item)); // if C++11 (based on comment from @mchiasson)
     }
+    return elems;
+  }
 
-    static WorkloadMixture* ParseFromWorkloadSpec(DB *db, const std::string & spec) {
-        std::vector<Workload*> workloads;
-        auto parts = Split(spec, ';');
-        for (int i = 0; i < parts.size(); ++i) {
-            std::string p = parts[i];
-            if (p.empty())
-                continue;
-            auto wparts = Split(p, '-');
-            assert(wparts.size() == 3);
-            int write_ratio = std::stoi(wparts[0]);
-            int table_size = std::stoi(wparts[1]);
-            int table_weight = std::stoi(wparts[2]);
-            int tid = i;
-            ReadWriteWorkload * rw = new ReadWriteWorkload(db, tid, table_size, write_ratio, table_weight);
-            workloads.push_back(rw);
-        }
-        return new WorkloadMixture(workloads, new WeightedRandomWorkloadSelector(workloads));
+  static WorkloadMixture *ParseFromWorkloadSpec(DB *db,
+                                                const std::string &spec) {
+    std::vector<Workload *> workloads;
+    auto parts = Split(spec, ';');
+    for (int i = 0; i < parts.size(); ++i) {
+      std::string p = parts[i];
+      if (p.empty())
+        continue;
+      auto wparts = Split(p, '-');
+      assert(wparts.size() == 3);
+      int write_ratio = std::stoi(wparts[0]);
+      int table_size = std::stoi(wparts[1]);
+      int table_weight = std::stoi(wparts[2]);
+      int tid = i;
+      ReadWriteWorkload *rw =
+          new ReadWriteWorkload(db, tid, table_size, write_ratio, table_weight);
+      workloads.push_back(rw);
     }
-    size_t Size() const {
-        size_t s = 0;
-        for (size_t i = 0; i < workloads.size(); ++i) {
-            s += workloads[i]->size();
-        }
-        return s;
+    return new WorkloadMixture(workloads,
+                               new WeightedRandomWorkloadSelector(workloads));
+  }
+  size_t Size() const {
+    size_t s = 0;
+    for (size_t i = 0; i < workloads.size(); ++i) {
+      s += workloads[i]->size();
     }
+    return s;
+  }
 };
 
 class Benchmark {
- private:
-  Cache* cache_;
-  const FilterPolicy* filter_policy_;
-  DB* db_;
+private:
+  Cache *cache_;
+  const FilterPolicy *filter_policy_;
+  DB *db_;
   int num_;
   int value_size_;
   int entries_per_batch_;
@@ -577,11 +593,13 @@ class Benchmark {
     fprintf(stdout, "Reads:      %d\n", FLAGS_reads);
     fprintf(stdout, "Num:        %d\n", FLAGS_num);
     fprintf(stdout, "RawSize:    %.1f MB (estimated)\n",
-            ((static_cast<int64_t>(kKeySize + FLAGS_value_size) * FLAGS_table_size)
-             / 1048576.0));
+            ((static_cast<int64_t>(kKeySize + FLAGS_value_size) *
+              FLAGS_table_size) /
+             1048576.0));
     fprintf(stdout, "FileSize:   %.1f MB (estimated)\n",
-            (((kKeySize + FLAGS_value_size * FLAGS_compression_ratio) * FLAGS_table_size)
-             / 1048576.0));
+            (((kKeySize + FLAGS_value_size * FLAGS_compression_ratio) *
+              FLAGS_table_size) /
+             1048576.0));
     fprintf(stdout, "DBImplType:  %s\n", FLAGS_db_type);
     fprintf(stdout, "LogRatio:  %f\n", FLAGS_log_dataset_ratio);
     fprintf(stdout, "DBPath: %s\n", FLAGS_db);
@@ -591,9 +609,9 @@ class Benchmark {
 
   void PrintWarnings() {
 #if defined(__GNUC__) && !defined(__OPTIMIZE__)
-    fprintf(stdout,
-            "WARNING: Optimization is disabled: benchmarks unnecessarily slow\n"
-            );
+    fprintf(
+        stdout,
+        "WARNING: Optimization is disabled: benchmarks unnecessarily slow\n");
 #endif
 #ifndef NDEBUG
     fprintf(stdout,
@@ -611,21 +629,21 @@ class Benchmark {
   }
 
   void PrintEnvironment() {
-    fprintf(stderr, "LevelDB:    version %d.%d\n",
-            kMajorVersion, kMinorVersion);
+    fprintf(stderr, "LevelDB:    version %d.%d\n", kMajorVersion,
+            kMinorVersion);
 
 #if defined(__linux)
     time_t now = time(nullptr);
-    fprintf(stderr, "Date:       %s", ctime(&now));  // ctime() adds newline
+    fprintf(stderr, "Date:       %s", ctime(&now)); // ctime() adds newline
 
-    FILE* cpuinfo = fopen("/proc/cpuinfo", "r");
+    FILE *cpuinfo = fopen("/proc/cpuinfo", "r");
     if (cpuinfo != nullptr) {
       char line[1000];
       int num_cpus = 0;
       std::string cpu_type;
       std::string cache_size;
       while (fgets(line, sizeof(line), cpuinfo) != nullptr) {
-        const char* sep = strchr(line, ':');
+        const char *sep = strchr(line, ':');
         if (sep == nullptr) {
           continue;
         }
@@ -645,18 +663,15 @@ class Benchmark {
 #endif
   }
 
- public:
+public:
   Benchmark()
-  : cache_(FLAGS_cache_size >= 0 ? NewLRUCache(FLAGS_cache_size) : nullptr),
-    filter_policy_(FLAGS_bloom_bits >= 0
-                   ? NewBloomFilterPolicy(FLAGS_bloom_bits)
-                   : nullptr),
-    db_(nullptr),
-    num_(FLAGS_num),
-    value_size_(FLAGS_value_size),
-    entries_per_batch_(1),
-    reads_(FLAGS_reads < 0 ? FLAGS_num : FLAGS_reads),
-    heap_counter_(0) {
+      : cache_(FLAGS_cache_size >= 0 ? NewLRUCache(FLAGS_cache_size) : nullptr),
+        filter_policy_(FLAGS_bloom_bits >= 0
+                           ? NewBloomFilterPolicy(FLAGS_bloom_bits)
+                           : nullptr),
+        db_(nullptr), num_(FLAGS_num), value_size_(FLAGS_value_size),
+        entries_per_batch_(1),
+        reads_(FLAGS_reads < 0 ? FLAGS_num : FLAGS_reads), heap_counter_(0) {
     std::vector<std::string> files;
     g_env->GetChildren(FLAGS_db, &files);
     for (size_t i = 0; i < files.size(); i++) {
@@ -665,14 +680,14 @@ class Benchmark {
       }
     }
     if (!FLAGS_use_existing_db) {
-        Status s;
+      Status s;
       if (FLAGS_db_type == std::string("silkstore")) {
         s = leveldb::silkstore::DestroyDB(FLAGS_db, Options());
       } else {
         s = leveldb::DestroyDB(FLAGS_db, Options());
       }
       if (!s.ok())
-          fprintf(stderr, "DestroyDB failed: %s\n", s.ToString().c_str());
+        fprintf(stderr, "DestroyDB failed: %s\n", s.ToString().c_str());
     }
   }
 
@@ -686,9 +701,9 @@ class Benchmark {
     PrintHeader();
     Open();
 
-    const char* benchmarks = FLAGS_benchmarks;
+    const char *benchmarks = FLAGS_benchmarks;
     while (benchmarks != nullptr) {
-      const char* sep = strchr(benchmarks, ',');
+      const char *sep = strchr(benchmarks, ',');
       Slice name;
       if (sep == nullptr) {
         name = benchmarks;
@@ -705,14 +720,15 @@ class Benchmark {
       entries_per_batch_ = 1;
       write_options_ = WriteOptions();
 
-      void (Benchmark::*method)(ThreadState*) = nullptr;
+      void (Benchmark::*method)(ThreadState *) = nullptr;
       bool fresh_db = false;
       int num_threads = FLAGS_threads;
 
       if (name == Slice("open")) {
         method = &Benchmark::OpenBench;
         num_ /= 10000;
-        if (num_ < 1) num_ = 1;
+        if (num_ < 1)
+          num_ = 1;
       } else if (name == Slice("fillseq")) {
         fresh_db = true;
         method = &Benchmark::WriteSeq;
@@ -724,8 +740,8 @@ class Benchmark {
         fresh_db = true;
         method = &Benchmark::WriteRandom;
       } else if (name == Slice("writeskewed")) {
-          fresh_db = true;
-          method = &Benchmark::WriteSkewed;
+        fresh_db = true;
+        method = &Benchmark::WriteSkewed;
       } else if (name == Slice("overwrite")) {
         fresh_db = false;
         method = &Benchmark::WriteRandom;
@@ -759,7 +775,7 @@ class Benchmark {
       } else if (name == Slice("deleterandom")) {
         method = &Benchmark::DeleteRandom;
       } else if (name == Slice("readwhilewriting")) {
-        num_threads++;  // Add extra thread for writing
+        num_threads++; // Add extra thread for writing
         method = &Benchmark::ReadWhileWriting;
       } else if (name == Slice("compact")) {
         method = &Benchmark::Compact;
@@ -784,7 +800,7 @@ class Benchmark {
         fresh_db = true;
         method = &Benchmark::MixedWorkloadFillRandom;
       } else {
-        if (name != Slice()) {  // No error message for empty name
+        if (name != Slice()) { // No error message for empty name
           fprintf(stderr, "unknown benchmark '%s'\n", name.ToString().c_str());
         }
       }
@@ -812,18 +828,18 @@ class Benchmark {
     }
   }
 
- private:
+private:
   struct ThreadArg {
-    Benchmark* bm;
-    SharedState* shared;
-    ThreadState* thread;
-    void (Benchmark::*method)(ThreadState*);
+    Benchmark *bm;
+    SharedState *shared;
+    ThreadState *thread;
+    void (Benchmark::*method)(ThreadState *);
   };
 
-  static void ThreadBody(void* v) {
-    ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
-    SharedState* shared = arg->shared;
-    ThreadState* thread = arg->thread;
+  static void ThreadBody(void *v) {
+    ThreadArg *arg = reinterpret_cast<ThreadArg *>(v);
+    SharedState *shared = arg->shared;
+    ThreadState *thread = arg->thread;
     {
       MutexLock l(&shared->mu);
       shared->num_initialized++;
@@ -849,10 +865,10 @@ class Benchmark {
   }
 
   void RunBenchmark(int n, Slice name,
-                    void (Benchmark::*method)(ThreadState*)) {
+                    void (Benchmark::*method)(ThreadState *)) {
     SharedState shared(n);
 
-    ThreadArg* arg = new ThreadArg[n];
+    ThreadArg *arg = new ThreadArg[n];
     for (int i = 0; i < n; i++) {
       arg[i].bm = this;
       arg[i].method = method;
@@ -885,10 +901,10 @@ class Benchmark {
     delete[] arg;
   }
 
-  void Crc32c(ThreadState* thread) {
+  void Crc32c(ThreadState *thread) {
     // Checksum about 500MB of data total
     const int size = 4096;
-    const char* label = "(4K per op)";
+    const char *label = "(4K per op)";
     std::string data(size, 'x');
     int64_t bytes = 0;
     uint32_t crc = 0;
@@ -904,7 +920,7 @@ class Benchmark {
     thread->stats.AddMessage(label);
   }
 
-  void AcquireLoad(ThreadState* thread) {
+  void AcquireLoad(ThreadState *thread) {
     int dummy;
     port::AtomicPointer ap(&dummy);
     int count = 0;
@@ -917,17 +933,18 @@ class Benchmark {
       count++;
       thread->stats.FinishedSingleOp();
     }
-    if (ptr == nullptr) exit(1); // Disable unused variable warning.
+    if (ptr == nullptr)
+      exit(1); // Disable unused variable warning.
   }
 
-  void SnappyCompress(ThreadState* thread) {
+  void SnappyCompress(ThreadState *thread) {
     RandomGenerator gen;
     Slice input = gen.Generate(Options().block_size);
     int64_t bytes = 0;
     int64_t produced = 0;
     bool ok = true;
     std::string compressed;
-    while (ok && bytes < 1024 * 1048576) {  // Compress 1G
+    while (ok && bytes < 1024 * 1048576) { // Compress 1G
       ok = port::Snappy_Compress(input.data(), input.size(), &compressed);
       produced += compressed.size();
       bytes += input.size();
@@ -945,16 +962,16 @@ class Benchmark {
     }
   }
 
-  void SnappyUncompress(ThreadState* thread) {
+  void SnappyUncompress(ThreadState *thread) {
     RandomGenerator gen;
     Slice input = gen.Generate(Options().block_size);
     std::string compressed;
     bool ok = port::Snappy_Compress(input.data(), input.size(), &compressed);
     int64_t bytes = 0;
-    char* uncompressed = new char[input.size()];
-    while (ok && bytes < 1024 * 1048576) {  // Compress 1G
-      ok =  port::Snappy_Uncompress(compressed.data(), compressed.size(),
-                                    uncompressed);
+    char *uncompressed = new char[input.size()];
+    while (ok && bytes < 1024 * 1048576) { // Compress 1G
+      ok = port::Snappy_Uncompress(compressed.data(), compressed.size(),
+                                   uncompressed);
       bytes += input.size();
       thread->stats.FinishedSingleOp();
     }
@@ -968,38 +985,41 @@ class Benchmark {
   }
 
   void Open() {
-      const int kKeySize = 16;
-      assert(db_ == nullptr);
-      Options options;
-      options.env = g_env;
-      options.create_if_missing = !FLAGS_use_existing_db;
-      options.block_cache = cache_;
-      options.write_buffer_size = FLAGS_write_buffer_size;
-      options.max_file_size = FLAGS_max_file_size;
-      options.block_size = FLAGS_block_size;
-      options.max_open_files = FLAGS_open_files;
-      options.filter_policy = filter_policy_;
-      options.reuse_logs = FLAGS_reuse_logs;
-      options.compression = kNoCompression;
-      options.enable_leaf_read_opt = FLAGS_enable_leaf_read_opt;
-      options.use_memtable_dynamic_filter = FLAGS_enable_memtable_bloom;
-      options.maximum_segments_storage_size = (static_cast<int64_t>(kKeySize + FLAGS_value_size) * FLAGS_table_size) * FLAGS_log_dataset_ratio;
-      fprintf(stderr, "maximum_segments_storage_size %lu bytes\n", options.maximum_segments_storage_size);
+    const int kKeySize = 16;
+    assert(db_ == nullptr);
+    Options options;
+    options.env = g_env;
+    options.create_if_missing = !FLAGS_use_existing_db;
+    options.block_cache = cache_;
+    options.write_buffer_size = FLAGS_write_buffer_size;
+    options.max_file_size = FLAGS_max_file_size;
+    options.block_size = FLAGS_block_size;
+    options.max_open_files = FLAGS_open_files;
+    options.filter_policy = filter_policy_;
+    options.reuse_logs = FLAGS_reuse_logs;
+    options.compression = kNoCompression;
+    options.enable_leaf_read_opt = FLAGS_enable_leaf_read_opt;
+    options.use_memtable_dynamic_filter = FLAGS_enable_memtable_bloom;
+    options.maximum_segments_storage_size =
+        (static_cast<int64_t>(kKeySize + FLAGS_value_size) * FLAGS_table_size) *
+        FLAGS_log_dataset_ratio;
+    fprintf(stderr, "maximum_segments_storage_size %lu bytes\n",
+            options.maximum_segments_storage_size);
 
-      Status s;
-      if (FLAGS_db_type == std::string("silkstore")) {
-         printf("silkstore open\n");
-	 DB::OpenSilkStore(options, FLAGS_db, &db_);
-      } else {
-        DB::Open(options, FLAGS_db, &db_);
-      }
+    Status s;
+    if (FLAGS_db_type == std::string("silkstore")) {
+      printf("silkstore open\n");
+      DB::OpenSilkStore(options, FLAGS_db, &db_);
+    } else {
+      DB::Open(options, FLAGS_db, &db_);
+    }
     if (!s.ok()) {
       fprintf(stderr, "open error: %s\n", s.ToString().c_str());
       exit(1);
     }
   }
 
-  void OpenBench(ThreadState* thread) {
+  void OpenBench(ThreadState *thread) {
     for (int i = 0; i < num_; i++) {
       delete db_;
       Open();
@@ -1007,23 +1027,19 @@ class Benchmark {
     }
   }
 
-  void WriteSeq(ThreadState* thread) {
-    DoWrite(thread, true);
-  }
+  void WriteSeq(ThreadState *thread) { DoWrite(thread, true); }
 
-  void WriteRandom(ThreadState* thread) {
-    DoWrite(thread, false);
-  }
+  void WriteRandom(ThreadState *thread) { DoWrite(thread, false); }
 
-  void DoWrite(ThreadState* thread, bool seq) {
+  void DoWrite(ThreadState *thread, bool seq) {
     if (num_ != FLAGS_num) {
       char msg[100];
       snprintf(msg, sizeof(msg), "(%d ops)", num_);
       thread->stats.AddMessage(msg);
     }
     std::string msg;
-    //db_->GetProperty(std::string(FLAGS_db_type) + ".stats", &msg);
-    //thread->stats.AddMessage(msg);
+    // db_->GetProperty(std::string(FLAGS_db_type) + ".stats", &msg);
+    // thread->stats.AddMessage(msg);
 
     RandomGenerator gen;
     WriteBatch batch;
@@ -1032,7 +1048,8 @@ class Benchmark {
     for (int i = 0; i < num_; i += entries_per_batch_) {
       batch.Clear();
       for (int j = 0; j < entries_per_batch_; j++) {
-        const int k = seq ? (i+j) % FLAGS_table_size : (thread->rand.Next() % FLAGS_table_size);
+        const int k = seq ? (i + j) % FLAGS_table_size
+                          : (thread->rand.Next() % FLAGS_table_size);
         char key[100];
         snprintf(key, sizeof(key), "%016d", k);
         batch.Put(key, gen.Generate(value_size_));
@@ -1055,53 +1072,54 @@ class Benchmark {
     db_->GetProperty("silkstore.segment_util", &segment_util);
     thread->stats.AddMessage(segment_util);
     std::string write_volume;
-    db_->GetProperty(std::string(FLAGS_db_type) + ".write_volume", &write_volume);
-    std::string wm = "Write Amplification Factor: " + std::to_string(std::stol(write_volume) / (bytes + 1.0));
+    db_->GetProperty(std::string(FLAGS_db_type) + ".write_volume",
+                     &write_volume);
+    std::string wm = "Write Amplification Factor: " +
+                     std::to_string(std::stol(write_volume) / (bytes + 1.0));
     thread->stats.AddMessage(wm);
   }
 
-
   void WriteSkewed(ThreadState *thread) {
-      RandomGenerator gen;
-      WriteBatch batch;
-      Status s;
-      std::string msg;
-      int64_t bytes = 0;
-      //std::unordered_set<std::string> m;
-      int max_log = ceil(std::log(FLAGS_table_size) / std::log(2));
-      for (int i = 0; i < num_; i += entries_per_batch_) {
-          batch.Clear();
-          for (int j = 0; j < entries_per_batch_; j++) {
-              const int k = thread->rand.Skewed(max_log);
-              char key[100];
-              snprintf(key, sizeof(key), "%016d", k);
-              batch.Put(key, gen.Generate(value_size_));
-              //m.insert(key);
-              bytes += value_size_ + strlen(key);
-              thread->stats.FinishedSingleOp();
-          }
-          s = db_->Write(write_options_, &batch);
-          if (!s.ok()) {
-             fprintf(stderr, "put error: %s\n", s.ToString().c_str());
-             exit(1);
-          }
+    RandomGenerator gen;
+    WriteBatch batch;
+    Status s;
+    std::string msg;
+    int64_t bytes = 0;
+    // std::unordered_set<std::string> m;
+    int max_log = ceil(std::log(FLAGS_table_size) / std::log(2));
+    for (int i = 0; i < num_; i += entries_per_batch_) {
+      batch.Clear();
+      for (int j = 0; j < entries_per_batch_; j++) {
+        const int k = thread->rand.Skewed(max_log);
+        char key[100];
+        snprintf(key, sizeof(key), "%016d", k);
+        batch.Put(key, gen.Generate(value_size_));
+        // m.insert(key);
+        bytes += value_size_ + strlen(key);
+        thread->stats.FinishedSingleOp();
       }
+      s = db_->Write(write_options_, &batch);
+      if (!s.ok()) {
+        fprintf(stderr, "put error: %s\n", s.ToString().c_str());
+        exit(1);
+      }
+    }
 
-      thread->stats.AddBytes(bytes);
-      //std::string num_unique_keys = std::to_string(m.size());
-      //thread->stats.AddMessage(num_unique_keys + " unique keys ");
-      db_->GetProperty(std::string(FLAGS_db_type) + ".stats", &msg);
-      thread->stats.AddMessage(msg);
-      std::string time_spent_gc;
-      db_->GetProperty("silkstore.gcstat", &time_spent_gc);
-      thread->stats.AddMessage(time_spent_gc);
-      std::string segment_util;
-      db_->GetProperty("silkstore.segment_util", &segment_util);
-      thread->stats.AddMessage(segment_util);
+    thread->stats.AddBytes(bytes);
+    // std::string num_unique_keys = std::to_string(m.size());
+    // thread->stats.AddMessage(num_unique_keys + " unique keys ");
+    db_->GetProperty(std::string(FLAGS_db_type) + ".stats", &msg);
+    thread->stats.AddMessage(msg);
+    std::string time_spent_gc;
+    db_->GetProperty("silkstore.gcstat", &time_spent_gc);
+    thread->stats.AddMessage(time_spent_gc);
+    std::string segment_util;
+    db_->GetProperty("silkstore.segment_util", &segment_util);
+    thread->stats.AddMessage(segment_util);
   }
 
-  void ReadSequential(ThreadState* thread) {
-    Iterator* iter = db_->NewIterator(ReadOptions());
+  void ReadSequential(ThreadState *thread) {
+    Iterator *iter = db_->NewIterator(ReadOptions());
     int i = 0;
     int64_t bytes = 0;
     for (iter->SeekToFirst(); i < reads_ && iter->Valid(); iter->Next()) {
@@ -1116,8 +1134,8 @@ class Benchmark {
     thread->stats.AddBytes(bytes);
   }
 
-  void ReadReverse(ThreadState* thread) {
-    Iterator* iter = db_->NewIterator(ReadOptions());
+  void ReadReverse(ThreadState *thread) {
+    Iterator *iter = db_->NewIterator(ReadOptions());
     int i = 0;
     int64_t bytes = 0;
     for (iter->SeekToLast(); i < reads_ && iter->Valid(); iter->Prev()) {
@@ -1129,7 +1147,7 @@ class Benchmark {
     thread->stats.AddBytes(bytes);
   }
 
-  void ReadRandom(ThreadState* thread) {
+  void ReadRandom(ThreadState *thread) {
     ReadOptions options;
     std::string value;
     int found = 0;
@@ -1154,15 +1172,19 @@ class Benchmark {
     db_->GetProperty("silkstore.leaf_avg_num_runs", &leaf_avg_num_runs);
     std::string searches_in_memtable;
     db_->GetProperty("silkstore.searches_in_memtable", &searches_in_memtable);
-    snprintf(msg, sizeof(msg), "(%d of %d found), runs_searched %s leaf_avg_num_runs %s searches_in_memtable %s ", found, num_, runs_searched.c_str(), leaf_avg_num_runs.c_str(), searches_in_memtable.c_str());
+    snprintf(msg, sizeof(msg),
+             "(%d of %d found), runs_searched %s leaf_avg_num_runs %s "
+             "searches_in_memtable %s ",
+             found, num_, runs_searched.c_str(), leaf_avg_num_runs.c_str(),
+             searches_in_memtable.c_str());
     thread->stats.AddMessage(msg);
 
-    //std::string leaf_stats;
-    //db_->GetProperty("silkstore.leaf_stats", &leaf_stats);
-    //thread->stats.AddMessage(leaf_stats);
+    // std::string leaf_stats;
+    // db_->GetProperty("silkstore.leaf_stats", &leaf_stats);
+    // thread->stats.AddMessage(leaf_stats);
   }
 
-  void ReadMissing(ThreadState* thread) {
+  void ReadMissing(ThreadState *thread) {
     ReadOptions options;
     std::string value;
     for (int i = 0; i < reads_; i++) {
@@ -1174,7 +1196,7 @@ class Benchmark {
     }
   }
 
-  void ReadHot(ThreadState* thread) {
+  void ReadHot(ThreadState *thread) {
     ReadOptions options;
     std::string value;
     const int range = (FLAGS_table_size + 99) / 100;
@@ -1187,16 +1209,17 @@ class Benchmark {
     }
   }
 
-  void SeekRandom(ThreadState* thread) {
+  void SeekRandom(ThreadState *thread) {
     ReadOptions options;
     int found = 0;
     for (int i = 0; i < reads_; i++) {
-      Iterator* iter = db_->NewIterator(options);
+      Iterator *iter = db_->NewIterator(options);
       char key[100];
       const int k = thread->rand.Next() % FLAGS_table_size;
       snprintf(key, sizeof(key), "%016d", k);
       iter->Seek(key);
-      if (iter->Valid() && iter->key() == key) found++;
+      if (iter->Valid() && iter->key() == key)
+        found++;
       delete iter;
       thread->stats.FinishedSingleOp();
     }
@@ -1205,14 +1228,15 @@ class Benchmark {
     thread->stats.AddMessage(msg);
   }
 
-  void DoDelete(ThreadState* thread, bool seq) {
+  void DoDelete(ThreadState *thread, bool seq) {
     RandomGenerator gen;
     WriteBatch batch;
     Status s;
     for (int i = 0; i < num_; i += entries_per_batch_) {
       batch.Clear();
       for (int j = 0; j < entries_per_batch_; j++) {
-        const int k = seq ? (i+j) % FLAGS_table_size : (thread->rand.Next() % FLAGS_table_size);
+        const int k = seq ? (i + j) % FLAGS_table_size
+                          : (thread->rand.Next() % FLAGS_table_size);
         char key[100];
         snprintf(key, sizeof(key), "%016d", k);
         batch.Delete(key);
@@ -1226,15 +1250,11 @@ class Benchmark {
     }
   }
 
-  void DeleteSeq(ThreadState* thread) {
-    DoDelete(thread, true);
-  }
+  void DeleteSeq(ThreadState *thread) { DoDelete(thread, true); }
 
-  void DeleteRandom(ThreadState* thread) {
-    DoDelete(thread, false);
-  }
+  void DeleteRandom(ThreadState *thread) { DoDelete(thread, false); }
 
-  void ReadWhileWriting(ThreadState* thread) {
+  void ReadWhileWriting(ThreadState *thread) {
     if (thread->tid > 0) {
       ReadRandom(thread);
     } else {
@@ -1264,11 +1284,9 @@ class Benchmark {
     }
   }
 
-  void Compact(ThreadState* thread) {
-    db_->CompactRange(nullptr, nullptr);
-  }
+  void Compact(ThreadState *thread) { db_->CompactRange(nullptr, nullptr); }
 
-  void PrintStats(const char* key) {
+  void PrintStats(const char *key) {
     std::string stats;
     if (!db_->GetProperty(key, &stats)) {
       stats = "(failed)";
@@ -1276,62 +1294,71 @@ class Benchmark {
     fprintf(stdout, "\n%s\n", stats.c_str());
   }
 
-  void MixedWorkload(ThreadState * thread) {
-      WorkloadMixture * mixture = WorkloadMixture::ParseFromWorkloadSpec(db_, FLAGS_mixed_wl_spec);
-      assert(mixture);
-      char msg[1000];
-      thread->stats.EnableReportCurrent();
-      for (int i = 0; i < FLAGS_num_ops_in_mixed_wl; ++i) {
-        mixture->work(thread);
-      }
-      std::string runs_searched;
-      db_->GetProperty("silkstore.runs_searched", &runs_searched);
-      std::string leaf_avg_num_runs;
-      db_->GetProperty("silkstore.leaf_avg_num_runs", &leaf_avg_num_runs);
-      std::string searches_in_memtable;
-      db_->GetProperty("silkstore.searches_in_memtable", &searches_in_memtable);
-      std::string num_leaves;
-      db_->GetProperty("silkstore.num_leaves", &num_leaves);
-      std::string segment_util;
-      db_->GetProperty("silkstore.segment_util", &segment_util);
-      std::string stats;
-      db_->GetProperty(std::string(FLAGS_db_type) + ".stats", &stats);
-      std::string time_spent_gc;
-      db_->GetProperty("silkstore.gcstat", &time_spent_gc);
-      snprintf(msg, sizeof(msg), "%d ops, runs_searched %s leaf_avg_num_runs %s searches_in_memtable %s num_leaves %s\n%s\n%s\n%s\n", FLAGS_num_ops_in_mixed_wl, runs_searched.c_str(), leaf_avg_num_runs.c_str(), searches_in_memtable.c_str(), num_leaves.c_str(), segment_util.c_str(), stats.c_str(), time_spent_gc.c_str());
-      thread->stats.AddMessage(msg);
-
+  void MixedWorkload(ThreadState *thread) {
+    WorkloadMixture *mixture =
+        WorkloadMixture::ParseFromWorkloadSpec(db_, FLAGS_mixed_wl_spec);
+    assert(mixture);
+    char msg[1000];
+    thread->stats.EnableReportCurrent();
+    for (int i = 0; i < FLAGS_num_ops_in_mixed_wl; ++i) {
+      mixture->work(thread);
+    }
+    std::string runs_searched;
+    db_->GetProperty("silkstore.runs_searched", &runs_searched);
+    std::string leaf_avg_num_runs;
+    db_->GetProperty("silkstore.leaf_avg_num_runs", &leaf_avg_num_runs);
+    std::string searches_in_memtable;
+    db_->GetProperty("silkstore.searches_in_memtable", &searches_in_memtable);
+    std::string num_leaves;
+    db_->GetProperty("silkstore.num_leaves", &num_leaves);
+    std::string segment_util;
+    db_->GetProperty("silkstore.segment_util", &segment_util);
+    std::string stats;
+    db_->GetProperty(std::string(FLAGS_db_type) + ".stats", &stats);
+    std::string time_spent_gc;
+    db_->GetProperty("silkstore.gcstat", &time_spent_gc);
+    snprintf(msg, sizeof(msg),
+             "%d ops, runs_searched %s leaf_avg_num_runs %s "
+             "searches_in_memtable %s num_leaves %s\n%s\n%s\n%s\n",
+             FLAGS_num_ops_in_mixed_wl, runs_searched.c_str(),
+             leaf_avg_num_runs.c_str(), searches_in_memtable.c_str(),
+             num_leaves.c_str(), segment_util.c_str(), stats.c_str(),
+             time_spent_gc.c_str());
+    thread->stats.AddMessage(msg);
   }
 
-    void MixedWorkloadFillRandom(ThreadState * thread) {
-        WorkloadMixture * mixture = WorkloadMixture::ParseFromWorkloadSpec(db_, FLAGS_mixed_wl_spec);
-        assert(mixture);
-        size_t table_total_size = mixture->Size();
-        fprintf(stderr, "table_total_size %lu\n", table_total_size);
-        for (int i = 0; i < FLAGS_table_size; ++i) {
-            mixture->fill(thread);
-        }
-        char msg[3000];
-        std::string num_leaves;
-        db_->GetProperty("silkstore.num_leaves", &num_leaves);
-        std::string segment_util;
-        db_->GetProperty("silkstore.segment_util", &segment_util);
-        std::string stats;
-        db_->GetProperty(std::string(FLAGS_db_type) + ".stats", &stats);
-        std::string time_spent_gc;
-        db_->GetProperty("silkstore.gcstat", &time_spent_gc);
-        snprintf(msg, sizeof(msg), "num_leaves %s\n%s\n%s\n%s\n", num_leaves.c_str(), segment_util.c_str(), stats.c_str(), time_spent_gc.c_str());
-        thread->stats.AddMessage(msg);
+  void MixedWorkloadFillRandom(ThreadState *thread) {
+    WorkloadMixture *mixture =
+        WorkloadMixture::ParseFromWorkloadSpec(db_, FLAGS_mixed_wl_spec);
+    assert(mixture);
+    size_t table_total_size = mixture->Size();
+    fprintf(stderr, "table_total_size %lu\n", table_total_size);
+    for (int i = 0; i < FLAGS_table_size; ++i) {
+      mixture->fill(thread);
     }
+    char msg[3000];
+    std::string num_leaves;
+    db_->GetProperty("silkstore.num_leaves", &num_leaves);
+    std::string segment_util;
+    db_->GetProperty("silkstore.segment_util", &segment_util);
+    std::string stats;
+    db_->GetProperty(std::string(FLAGS_db_type) + ".stats", &stats);
+    std::string time_spent_gc;
+    db_->GetProperty("silkstore.gcstat", &time_spent_gc);
+    snprintf(msg, sizeof(msg), "num_leaves %s\n%s\n%s\n%s\n",
+             num_leaves.c_str(), segment_util.c_str(), stats.c_str(),
+             time_spent_gc.c_str());
+    thread->stats.AddMessage(msg);
+  }
 
-  static void WriteToFile(void* arg, const char* buf, int n) {
-    reinterpret_cast<WritableFile*>(arg)->Append(Slice(buf, n));
+  static void WriteToFile(void *arg, const char *buf, int n) {
+    reinterpret_cast<WritableFile *>(arg)->Append(Slice(buf, n));
   }
 
   void HeapProfile() {
     char fname[100];
     snprintf(fname, sizeof(fname), "%s/heap-%04d", FLAGS_db, ++heap_counter_);
-    WritableFile* file;
+    WritableFile *file;
     Status s = g_env->NewWritableFile(fname, &file);
     if (!s.ok()) {
       fprintf(stderr, "%s\n", s.ToString().c_str());
@@ -1346,11 +1373,9 @@ class Benchmark {
   }
 };
 
+} // namespace leveldb
 
-}  // namespace leveldb
-
-
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   FLAGS_write_buffer_size = leveldb::Options().write_buffer_size;
   FLAGS_max_file_size = leveldb::Options().max_file_size;
   FLAGS_block_size = leveldb::Options().block_size;
@@ -1419,19 +1444,19 @@ int main(int argc, char** argv) {
   leveldb::g_env = leveldb::Env::Default();
 
   // Choose a location for the test database if none given with --db=<path>
-  if (FLAGS_db== nullptr) {
-      //leveldb::g_env->GetTestDirectory(&default_db_path);
-      //default_db_path = "/mnt/900p/dbbench";
-      default_db_path = "/mnt/toshiba/dbbench";
-//      if (FLAGS_db_type == std::string("silkstore"))
-//          default_db_path += "/silkstore";
-//      else
-//          default_db_path += "/leveldb";
-      FLAGS_db = default_db_path.c_str();
+  if (FLAGS_db == nullptr) {
+    // leveldb::g_env->GetTestDirectory(&default_db_path);
+    // default_db_path = "/mnt/900p/dbbench";
+    default_db_path = "/mnt/toshiba/dbbench";
+    //      if (FLAGS_db_type == std::string("silkstore"))
+    //          default_db_path += "/silkstore";
+    //      else
+    //          default_db_path += "/leveldb";
+    FLAGS_db = default_db_path.c_str();
   }
 
   if (FLAGS_table_size == -1)
-      FLAGS_table_size = FLAGS_num;
+    FLAGS_table_size = FLAGS_num;
   leveldb::Benchmark benchmark;
   benchmark.Run();
   return 0;

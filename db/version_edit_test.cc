@@ -7,7 +7,7 @@
 
 namespace leveldb {
 
-static void TestEncodeDecode(const VersionEdit& edit) {
+static void TestEncodeDecode(const VersionEdit &edit) {
   std::string encoded, encoded2;
   edit.EncodeTo(&encoded);
   VersionEdit parsed;
@@ -17,7 +17,7 @@ static void TestEncodeDecode(const VersionEdit& edit) {
   ASSERT_EQ(encoded, encoded2);
 }
 
-class VersionEditTest { };
+class VersionEditTest {};
 
 TEST(VersionEditTest, EncodeDecode) {
   static const uint64_t kBig = 1ull << 50;
@@ -39,8 +39,6 @@ TEST(VersionEditTest, EncodeDecode) {
   TestEncodeDecode(edit);
 }
 
-}  // namespace leveldb
+} // namespace leveldb
 
-int main(int argc, char** argv) {
-  return leveldb::test::RunAllTests();
-}
+int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
