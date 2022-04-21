@@ -27,15 +27,6 @@ uint64_t Nvmem::Insert(const char *value, int len) {
   }
 }
 
-/* // update date into nvm
-void Nvmem::update(uint64_t add ,char* value, int len){
-    // then, insert data and flush to nvm
-    memcpy((void *)add , value, len);
-    clwbmore(data_ + index_, data_ + index_ + len);
-    sfence();
-}
- */
-
 bool Nvmem::UpdateCounter(size_t counters) {
   memcpy(data_, &counters, 8);
   clwb(data_);

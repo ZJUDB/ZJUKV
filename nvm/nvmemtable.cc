@@ -42,7 +42,7 @@ size_t NvmemTable::Searches() const { return searches_; }
 size_t NvmemTable::NumEntries() const { return num_entries_; }
 size_t NvmemTable::ApproximateMemoryUsage() {
   return memory_usage_;
-} // arena_.MemoryUsage(); }
+}
 
 int NvmemTable::KeyComparator::operator()(const char *aptr,
                                           const char *bptr) const {

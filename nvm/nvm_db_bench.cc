@@ -44,10 +44,13 @@
 //      sstables    -- Print sstable info
 //      heapprofile -- Dump a heap profile (if supported by this port)
 static const char *FLAGS_benchmarks =
-    "fillrandom,"
-
-    "readrandomsmall," // Extra run to allow previous compactions to quiesce
-
+    //"fillrandom,"
+    "fillseq,"
+    "shortrange,"
+    "readrandomsmall,"
+    "readseq,"
+    
+    //"readrandomsmall," // Extra run to allow previous compactions to quiesce
     /*
      "fillseq,"
      "readrandom,"
@@ -791,6 +794,8 @@ public:
         method = &Benchmark::WriteRandom;
       } else if (name == Slice("readseq")) {
         method = &Benchmark::ReadSequential;
+      }else if (name == Slice("shortrange")) {
+        method = &Benchmark::ShortRangeQuery;
       } else if (name == Slice("readreverse")) {
         method = &Benchmark::ReadReverse;
       } else if (name == Slice("readrandom")) {
@@ -802,7 +807,7 @@ public:
       } else if (name == Slice("readhot")) {
         method = &Benchmark::ReadHot;
       } else if (name == Slice("readrandomsmall")) {
-        reads_ /= 300;
+        reads_ /= 3000;
         method = &Benchmark::ReadRandom;
       } else if (name == Slice("deleteseq")) {
         method = &Benchmark::DeleteSeq;
@@ -1157,6 +1162,34 @@ private:
     thread->stats.AddMessage(segment_util);
   }
 
+
+void ShortRangeQuery(ThreadState *thread) {
+    Iterator *iter = db_->NewIterator(ReadOptions());
+    int64_t bytes = 0;
+    int query_nums = 10000;
+    int query_lens = 10000;
+    int kv_nums = 0;
+    for(int j = 0; j < query_nums; j++){
+      char key[100];
+      const int k = thread->rand.Next() % FLAGS_table_size;
+      snprintf(key, sizeof(key), "%016d", k);
+      int i = 0;    
+      for (iter->Seek(key); i < query_lens && iter->Valid(); iter->Next()) {
+        bytes += iter->key().size() + iter->value().size();
+        thread->stats.FinishedSingleOp();
+        ++i;
+        kv_nums++;
+      }
+    }
+    
+    printf("Total reads_ %d  avil kv num's : %d \n",reads_ , kv_nums);
+
+    delete iter;
+    char msg[100];
+    snprintf(msg, sizeof(msg), "%ld bytes %d reads", bytes, kv_nums);
+    thread->stats.AddMessage(msg);
+    thread->stats.AddBytes(bytes);
+  }
   void ReadSequential(ThreadState *thread) {
     Iterator *iter = db_->NewIterator(ReadOptions());
     int i = 0;
@@ -1166,6 +1199,8 @@ private:
       thread->stats.FinishedSingleOp();
       ++i;
     }
+    printf("Total reads_ %d  avil kv num's : %d \n",reads_ , i);
+
     delete iter;
     char msg[100];
     snprintf(msg, sizeof(msg), "%ld bytes %d reads", bytes, i);

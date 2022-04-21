@@ -15,6 +15,9 @@
 #include "silkstore/util.h"
 
 extern int runs_searched;
+extern int runs_hit_counts;
+extern int runs_miss_counts;
+extern int bloom_filter_counts;
 namespace leveldb {
 namespace silkstore {
 
@@ -394,6 +397,7 @@ Status LeafStore::Get(const ReadOptions &options, const LookupKey &key,
       FilterBlockReader filter(options_.filter_policy,
                                minirun_index_entry.GetFilterData());
       if (filter.KeyMayMatch(0, key.internal_key()) == false) {
+        bloom_filter_counts++;
         return false;
       }
     }
@@ -405,8 +409,7 @@ Status LeafStore::Get(const ReadOptions &options, const LookupKey &key,
       return true;
     DeferCode c2([this, seg]() { seg_manager_->DropSegment(seg); });
 
-    Block index_block(
-        BlockContents{minirun_index_entry.GetBlockIndexData(), false, false});
+    Block index_block(BlockContents{minirun_index_entry.GetBlockIndexData(), false, false});
     MiniRun *run;
     uint32_t run_no = minirun_index_entry.GetRunNumberWithinSegment();
     s = seg->OpenMiniRun(run_no, index_block, &run);
@@ -434,11 +437,13 @@ Status LeafStore::Get(const ReadOptions &options, const LookupKey &key,
           } else { // kDeleted
             key_status = Status::NotFound("");
           }
+          runs_hit_counts++;
           return true;
         }
       }
     }
 
+    runs_miss_counts++;
     return false;
   };
 

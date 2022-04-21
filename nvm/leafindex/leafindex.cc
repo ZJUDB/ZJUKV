@@ -76,7 +76,6 @@ class LeafIndexIterator : public Iterator {
   virtual void Next() { ++iter_; }
   virtual void Prev() {
     --iter_;
-    /* iter_.Prev(); */
     fprintf(stderr, "MemTableIterator's Prev() is not implemented ! \n");
     sleep(111);
     assert(true);
@@ -88,20 +87,16 @@ class LeafIndexIterator : public Iterator {
     Slice key_slice = GetLengthPrefixedSlice((char *)(iter_->second));
     return GetLengthPrefixedSlice(key_slice.data() + key_slice.size());
   }
-
   virtual Status status() const { return Status::OK(); }
-
 private:
   LeafIndex::Index *index;
   LeafIndex::Index::iterator iter_;
-
   // No copying allowed
   LeafIndexIterator(const LeafIndexIterator &);
   void operator=(const LeafIndexIterator &);
 };
 
 Iterator *LeafIndex::NewIterator() { return new LeafIndexIterator(&index_); }
-
 Status LeafIndex::AddCounter(size_t added) {
   counters_ += added;
   nvmem->UpdateCounter(counters_);
@@ -140,15 +135,13 @@ Status LeafIndex::Recovery(SequenceNumber &max_sequence) {
         std::string(key_ptr, key_length - 8);
     max_sequence = SequenceNumber(DecodeFixed64(key_ptr + key_length - 8));
     max_sequence = (max_sequence >> 8) + counters;
-    // std::cout << "max_sequence: " << max_sequence << "\n";
   }
 
   while (counters--) {
     const char *key_ptr =
         GetVarint32Ptr((char *)(address + offset),
                        (char *)(address + offset + 5), &key_length);
-    std::string key = // Slice(key_ptr, key_length - 8).ToString();
-        std::string(key_ptr, key_length - 8);
+    std::string key = std::string(key_ptr, key_length - 8);
     AddIndex(key, address + offset);
     offset += key_length + VarintLength(key_length);
     const char *value_ptr =
@@ -158,84 +151,17 @@ Status LeafIndex::Recovery(SequenceNumber &max_sequence) {
   }
   nvmem->UpdateIndex(offset);
   memory_usage_ = offset;
-  // printf("Recovery Finished ! \n");
   return Status::OK();
 }
 
 void LeafIndex::Add(SequenceNumber s, ValueType type, const Slice &key,
                     const Slice &value) {
-  // Format of an entry is concatenation of:
-  //  magic number
-  //  key_size     : varint32 of internal_key.size()
-  //  key bytes    : char[internal_key.size()]
-  //  value_size   : varint32 of value.size()
-  //  value bytes  : char[value.size()]
-  /*  size_t magic_num = 0xFF12345678FF;
-
-   std::string magic = "12345678";
-
-   //Slice s;
-   std::string str = key.ToString();
-   std::string suffix;
-   size_t suffix_val = 0;
-   if (str.size() > 8){
-       suffix = str.substr(str.length()-8,str.length());
-       //std::cout<< "suffix :"<< suffix << "\n";
-      // suffix_val = bytesToInt_64(suffix.c_str());
-   }
-   std::string input_key;
-
-
-   if (suffix == magic){
-      //std::cout << "suffix == magic "<< str << " \n " ;
-      input_key = str.substr(0, str.length()-8);
-   }else{
-      //std::cout << "suffix_val != magic_num " << suffix_val<< " " << magic_num
- << " \n " ; input_key = key.ToString();
-   }
-
-   // std::cout << "seq : " << s <<" input_key : " << input_key << " value: " <<
- value.ToString() << "\n";
-
-   size_t key_size = input_key.size();
-   size_t val_size = value.size();
-   size_t internal_key_size = key_size + 8;
-   const size_t encoded_len =
-       VarintLength(internal_key_size) + internal_key_size +
-       VarintLength(val_size) + val_size;
-   if(1024ul*1024ul*16ul <= encoded_len ){
-     std::__throw_runtime_error("1024ul*1024ul*16ul <= encoded_len \n");
-   }
-   char* p = EncodeVarint32(buf, internal_key_size);
-   memcpy(p, input_key.data(), key_size);
-   p += key_size;
-   //std::cout<<"SequenceNumber: " << s<<"\n";
-   memcpy(p, magic.c_str(), 8);
-   p += 8;
-   p = EncodeVarint32(p, val_size);
-   memcpy(p, value.data(), val_size);
-   assert(p + val_size == buf + encoded_len);
- //  memcpy(buf + encoded_len, magicNum, 4);
-   uint64_t address = nvmem->Insert(buf, encoded_len);
-   if(val_size == 56)
-     std::cout<< key.ToString() << " address: " << address << " encoded_len: "<<
- encoded_len << "\n"; index_[input_key] = address;
-
-   if (dynamic_filter)
-     dynamic_filter->Add(input_key);
-   ++num_entries_;
-   // update memory_usage_ to recode nvm's usage size
-   memory_usage_ += encoded_len; */
   size_t key_size = key.size();
   size_t val_size = value.size();
   size_t internal_key_size = key_size + 8;
   const size_t encoded_len = VarintLength(internal_key_size) +
                              internal_key_size + VarintLength(val_size) +
                              val_size;
-
-  // std::cout << "seq : " << s <<" input_key  size: " << key_size
-  //      << " value size: " << val_size << "\n";
-
   char *p = EncodeVarint32(buf, internal_key_size);
   memcpy(p, key.data(), key_size);
   p += key_size;
@@ -252,7 +178,6 @@ void LeafIndex::Add(SequenceNumber s, ValueType type, const Slice &key,
   ++num_entries_;
   // update memory_usage_ to recode nvm's usage size
   memory_usage_ += encoded_len;
-
   AddCounter(1);
 }
 
@@ -264,9 +189,6 @@ bool LeafIndex::Get(const LookupKey &key, std::string *value, Status *s) {
   uint64_t address = 0;
   bool suc = index_.count(memkey.ToString());
   if (suc == true) {
-
-    /*  Slice foundkey = NvmGetLengthPrefixedSlice((char *)(address));
-     std::cout << "found ! key: "<< foundkey.ToString() <<"\n"; */
     // entry format is:
     //    magicNum
     //    klength  varint32

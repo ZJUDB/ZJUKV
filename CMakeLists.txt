@@ -564,7 +564,7 @@ add_custom_target(check-format ${BUSTUB_BUILD_SUPPORT_DIR}/run_clang_format.py
 file(GLOB_RECURSE BUSTUB_LINT_FILES
 # "${PROJECT_SOURCE_DIR}/db/*.h"
 # "${PROJECT_SOURCE_DIR}/include/*.h"
-# "${PROJECT_SOURCE_DIR}/nvm/*.h"
+"${PROJECT_SOURCE_DIR}/nvm/*.h"
 # "${PROJECT_SOURCE_DIR}/silkstore/*.h"
 # "${PROJECT_SOURCE_DIR}/helpers/*.h"
 # "${PROJECT_SOURCE_DIR}/util/*.h"

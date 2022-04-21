@@ -11,13 +11,12 @@
 #ifndef STORAGE_LEVELDB_DB_LeafIndex_STL_H_
 #define STORAGE_LEVELDB_DB_LeafIndex_STL_H_
 
-#include "db/dbformat.h"
-#include "leveldb/db.h"
-#include "leveldb/filter_policy.h"
 #include <map>
 #include <string>
 
-//#include "leveldb/nvm_write_batch.h"
+#include "db/dbformat.h"
+#include "leveldb/db.h"
+#include "leveldb/filter_policy.h"
 
 #include "nvm/nvmem.h"
 
@@ -27,7 +26,7 @@ class InternalKeyComparator;
 class MemTableIterator;
 
 class LeafIndex {
-public:
+ public:
   // MemTables are reference counted.  The initial reference count
   // is zero and the caller must call Ref() at least once.
   // explicit LeafIndex(const InternalKeyComparator& comparator,
@@ -84,8 +83,9 @@ public:
   size_t NumEntries() const;
   size_t Searches() const;
 
-private:
-  ~LeafIndex(); // Private since only Unref() should be used to delete it
+ private:
+  // Private since only Unref() should be used to delete it.
+  ~LeafIndex();
   struct KeyComparator {
     const InternalKeyComparator comparator;
     explicit KeyComparator(const InternalKeyComparator &c) : comparator(c) {}
@@ -111,7 +111,5 @@ private:
   LeafIndex(const LeafIndex &);
   void operator=(const LeafIndex &);
 };
-
-} // namespace leveldb
-
-#endif // STORAGE_LEVELDB_DB_MEMTABLE_H_
+}  // namespace leveldb
+#endif  // STORAGE_LEVELDB_DB_MEMTABLE_H_
