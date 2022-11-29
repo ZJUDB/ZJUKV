@@ -19,13 +19,13 @@ static const int kReadOnlyFileLimit = 4;
 static const int kMMapLimit = 4;
 
 class EnvTest {
-public:
-  Env *env_;
+ public:
+  Env* env_;
   EnvTest() : env_(Env::Default()) {}
 };
 
-static void SetBool(void *ptr) {
-  reinterpret_cast<port::AtomicPointer *>(ptr)->NoBarrier_Store(ptr);
+static void SetBool(void* ptr) {
+  reinterpret_cast<port::AtomicPointer*>(ptr)->NoBarrier_Store(ptr);
 }
 
 TEST(EnvTest, ReadWrite) {
@@ -35,14 +35,14 @@ TEST(EnvTest, ReadWrite) {
   std::string test_dir;
   ASSERT_OK(env_->GetTestDirectory(&test_dir));
   std::string test_file_name = test_dir + "/open_on_read.txt";
-  WritableFile *writable_file;
+  WritableFile* writable_file;
   ASSERT_OK(env_->NewWritableFile(test_file_name, &writable_file));
 
   // Fill a file with data generated via a sequence of randomly sized writes.
   static const size_t kDataSize = 10 * 1048576;
   std::string data;
   while (data.size() < kDataSize) {
-    int len = rnd.Skewed(18); // Up to 2^18 - 1, but typically much smaller
+    int len = rnd.Skewed(18);  // Up to 2^18 - 1, but typically much smaller
     std::string r;
     test::RandomString(&rnd, len, &r);
     ASSERT_OK(writable_file->Append(r));
@@ -56,13 +56,13 @@ TEST(EnvTest, ReadWrite) {
   delete writable_file;
 
   // Read all data using a sequence of randomly sized reads.
-  SequentialFile *sequential_file;
+  SequentialFile* sequential_file;
   ASSERT_OK(env_->NewSequentialFile(test_file_name, &sequential_file));
   std::string read_result;
   std::string scratch;
   while (read_result.size() < data.size()) {
     int len = std::min<int>(rnd.Skewed(18), data.size() - read_result.size());
-    scratch.resize(std::max(len, 1)); // at least 1 so &scratch[0] is legal
+    scratch.resize(std::max(len, 1));  // at least 1 so &scratch[0] is legal
     Slice read;
     ASSERT_OK(sequential_file->Read(len, &read, &scratch[0]));
     if (len > 0) {
@@ -86,16 +86,16 @@ TEST(EnvTest, RunMany) {
   port::AtomicPointer last_id(nullptr);
 
   struct CB {
-    port::AtomicPointer *last_id_ptr; // Pointer to shared slot
-    uintptr_t id; // Order# for the execution of this callback
+    port::AtomicPointer* last_id_ptr;  // Pointer to shared slot
+    uintptr_t id;  // Order# for the execution of this callback
 
-    CB(port::AtomicPointer *p, int i) : last_id_ptr(p), id(i) {}
+    CB(port::AtomicPointer* p, int i) : last_id_ptr(p), id(i) {}
 
-    static void Run(void *v) {
-      CB *cb = reinterpret_cast<CB *>(v);
-      void *cur = cb->last_id_ptr->NoBarrier_Load();
+    static void Run(void* v) {
+      CB* cb = reinterpret_cast<CB*>(v);
+      void* cur = cb->last_id_ptr->NoBarrier_Load();
       ASSERT_EQ(cb->id - 1, reinterpret_cast<uintptr_t>(cur));
-      cb->last_id_ptr->Release_Store(reinterpret_cast<void *>(cb->id));
+      cb->last_id_ptr->Release_Store(reinterpret_cast<void*>(cb->id));
     }
   };
 
@@ -110,7 +110,7 @@ TEST(EnvTest, RunMany) {
   env_->Schedule(&CB::Run, &cb4);
 
   env_->SleepForMicroseconds(kDelayMicros);
-  void *cur = last_id.Acquire_Load();
+  void* cur = last_id.Acquire_Load();
   ASSERT_EQ(4, reinterpret_cast<uintptr_t>(cur));
 }
 
@@ -122,8 +122,8 @@ struct State {
   State(int val, int num_running) : val(val), num_running(num_running) {}
 };
 
-static void ThreadBody(void *arg) {
-  State *s = reinterpret_cast<State *>(arg);
+static void ThreadBody(void* arg) {
+  State* s = reinterpret_cast<State*>(arg);
   s->mu.Lock();
   s->val += 1;
   s->num_running -= 1;
@@ -157,12 +157,12 @@ TEST(EnvTest, TestOpenNonExistentFile) {
   std::string non_existent_file = test_dir + "/non_existent_file";
   ASSERT_TRUE(!env_->FileExists(non_existent_file));
 
-  RandomAccessFile *random_access_file;
+  RandomAccessFile* random_access_file;
   Status status =
       env_->NewRandomAccessFile(non_existent_file, &random_access_file);
   ASSERT_TRUE(status.IsNotFound());
 
-  SequentialFile *sequential_file;
+  SequentialFile* sequential_file;
   status = env_->NewSequentialFile(non_existent_file, &sequential_file);
   ASSERT_TRUE(status.IsNotFound());
 }
@@ -173,7 +173,7 @@ TEST(EnvTest, ReopenWritableFile) {
   std::string test_file_name = test_dir + "/reopen_writable_file.txt";
   env_->DeleteFile(test_file_name);
 
-  WritableFile *writable_file;
+  WritableFile* writable_file;
   ASSERT_OK(env_->NewWritableFile(test_file_name, &writable_file));
   std::string data("hello world!");
   ASSERT_OK(writable_file->Append(data));
@@ -197,7 +197,7 @@ TEST(EnvTest, ReopenAppendableFile) {
   std::string test_file_name = test_dir + "/reopen_appendable_file.txt";
   env_->DeleteFile(test_file_name);
 
-  WritableFile *appendable_file;
+  WritableFile* appendable_file;
   ASSERT_OK(env_->NewAppendableFile(test_file_name, &appendable_file));
   std::string data("hello world!");
   ASSERT_OK(appendable_file->Append(data));
@@ -215,6 +215,6 @@ TEST(EnvTest, ReopenAppendableFile) {
   env_->DeleteFile(test_file_name);
 }
 
-} // namespace leveldb
+}  // namespace leveldb
 
-int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
+int main(int argc, char** argv) { return leveldb::test::RunAllTests(); }

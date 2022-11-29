@@ -12,10 +12,10 @@ namespace leveldb {
 
 namespace silkstore {
 
-Iterator *NewDBIterator(const Comparator *user_key_comparator,
-                        Iterator *internal_iter, SequenceNumber sequence) {
+Iterator* NewDBIterator(const Comparator* user_key_comparator,
+                        Iterator* internal_iter, SequenceNumber sequence) {
   return new DBIter(user_key_comparator, internal_iter, sequence);
 }
 
-} // namespace silkstore
-} // namespace leveldb
+}  // namespace silkstore
+}  // namespace leveldb

@@ -13,50 +13,50 @@
 #ifndef STORAGE_LEVELDB_INCLUDE_STATUS_H_
 #define STORAGE_LEVELDB_INCLUDE_STATUS_H_
 
-#include "leveldb/export.h"
-#include "leveldb/slice.h"
 #include <algorithm>
 #include <string>
+#include "leveldb/export.h"
+#include "leveldb/slice.h"
 
 namespace leveldb {
 
 class LEVELDB_EXPORT Status {
-public:
+ public:
   // Create a success status.
   Status() noexcept : state_(nullptr) {}
   ~Status() { delete[] state_; }
 
-  Status(const Status &rhs);
-  Status &operator=(const Status &rhs);
+  Status(const Status& rhs);
+  Status& operator=(const Status& rhs);
 
-  Status(Status &&rhs) noexcept : state_(rhs.state_) { rhs.state_ = nullptr; }
-  Status &operator=(Status &&rhs) noexcept;
+  Status(Status&& rhs) noexcept : state_(rhs.state_) { rhs.state_ = nullptr; }
+  Status& operator=(Status&& rhs) noexcept;
 
   // Return a success status.
   static Status OK() { return Status(); }
 
   // Return error status of an appropriate type.
-  static Status NotFound(const Slice &msg, const Slice &msg2 = Slice()) {
+  static Status NotFound(const Slice& msg, const Slice& msg2 = Slice()) {
     return Status(kNotFound, msg, msg2);
   }
-  static Status Corruption(const Slice &msg, const Slice &msg2 = Slice()) {
+  static Status Corruption(const Slice& msg, const Slice& msg2 = Slice()) {
     return Status(kCorruption, msg, msg2);
   }
-  static Status NotSupported(const Slice &msg, const Slice &msg2 = Slice()) {
+  static Status NotSupported(const Slice& msg, const Slice& msg2 = Slice()) {
     return Status(kNotSupported, msg, msg2);
   }
-  static Status InvalidArgument(const Slice &msg, const Slice &msg2 = Slice()) {
+  static Status InvalidArgument(const Slice& msg, const Slice& msg2 = Slice()) {
     return Status(kInvalidArgument, msg, msg2);
   }
-  static Status IOError(const Slice &msg, const Slice &msg2 = Slice()) {
+  static Status IOError(const Slice& msg, const Slice& msg2 = Slice()) {
     return Status(kIOError, msg, msg2);
   }
 
-  static Status SplitUnderflow(const Slice &msg, const Slice &msg2 = Slice()) {
+  static Status SplitUnderflow(const Slice& msg, const Slice& msg2 = Slice()) {
     return Status(kSplitUnderflow, msg, msg2);
   }
 
-  static Status LeafEmpty(const Slice &msg, const Slice &msg2 = Slice()) {
+  static Status LeafEmpty(const Slice& msg, const Slice& msg2 = Slice()) {
     return Status(kLeafEmpty, msg, msg2);
   }
 
@@ -88,13 +88,13 @@ public:
   // Returns the string "OK" for success.
   std::string ToString() const;
 
-private:
+ private:
   // OK status has a null state_.  Otherwise, state_ is a new[] array
   // of the following form:
   //    state_[0..3] == length of message
   //    state_[4]    == code
   //    state_[5..]  == message
-  const char *state_;
+  const char* state_;
 
   enum Code {
     kOk = 0,
@@ -111,14 +111,14 @@ private:
     return (state_ == nullptr) ? kOk : static_cast<Code>(state_[4]);
   }
 
-  Status(Code code, const Slice &msg, const Slice &msg2);
-  static const char *CopyState(const char *s);
+  Status(Code code, const Slice& msg, const Slice& msg2);
+  static const char* CopyState(const char* s);
 };
 
-inline Status::Status(const Status &rhs) {
+inline Status::Status(const Status& rhs) {
   state_ = (rhs.state_ == nullptr) ? nullptr : CopyState(rhs.state_);
 }
-inline Status &Status::operator=(const Status &rhs) {
+inline Status& Status::operator=(const Status& rhs) {
   // The following condition catches both aliasing (when this == &rhs),
   // and the common case where both rhs and *this are ok.
   if (state_ != rhs.state_) {
@@ -127,11 +127,11 @@ inline Status &Status::operator=(const Status &rhs) {
   }
   return *this;
 }
-inline Status &Status::operator=(Status &&rhs) noexcept {
+inline Status& Status::operator=(Status&& rhs) noexcept {
   std::swap(state_, rhs.state_);
   return *this;
 }
 
-} // namespace leveldb
+}  // namespace leveldb
 
-#endif // STORAGE_LEVELDB_INCLUDE_STATUS_H_
+#endif  // STORAGE_LEVELDB_INCLUDE_STATUS_H_

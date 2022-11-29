@@ -36,7 +36,7 @@ TEST(CRC, StandardResults) {
       0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x18, 0x28, 0x00, 0x00, 0x00,
       0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   };
-  ASSERT_EQ(0xd9963a56, Value(reinterpret_cast<char *>(data), sizeof(data)));
+  ASSERT_EQ(0xd9963a56, Value(reinterpret_cast<char*>(data), sizeof(data)));
 }
 
 TEST(CRC, Values) { ASSERT_NE(Value("a", 1), Value("foo", 3)); }
@@ -53,7 +53,7 @@ TEST(CRC, Mask) {
   ASSERT_EQ(crc, Unmask(Unmask(Mask(Mask(crc)))));
 }
 
-} // namespace crc32c
-} // namespace leveldb
+}  // namespace crc32c
+}  // namespace leveldb
 
-int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
+int main(int argc, char** argv) { return leveldb::test::RunAllTests(); }

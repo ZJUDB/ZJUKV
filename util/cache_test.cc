@@ -4,9 +4,9 @@
 
 #include "leveldb/cache.h"
 
+#include <vector>
 #include "util/coding.h"
 #include "util/testharness.h"
-#include <vector>
 
 namespace leveldb {
 
@@ -16,18 +16,18 @@ static std::string EncodeKey(int k) {
   PutFixed32(&result, k);
   return result;
 }
-static int DecodeKey(const Slice &k) {
+static int DecodeKey(const Slice& k) {
   assert(k.size() == 4);
   return DecodeFixed32(k.data());
 }
-static void *EncodeValue(uintptr_t v) { return reinterpret_cast<void *>(v); }
-static int DecodeValue(void *v) { return reinterpret_cast<uintptr_t>(v); }
+static void* EncodeValue(uintptr_t v) { return reinterpret_cast<void*>(v); }
+static int DecodeValue(void* v) { return reinterpret_cast<uintptr_t>(v); }
 
 class CacheTest {
-public:
-  static CacheTest *current_;
+ public:
+  static CacheTest* current_;
 
-  static void Deleter(const Slice &key, void *v) {
+  static void Deleter(const Slice& key, void* v) {
     current_->deleted_keys_.push_back(DecodeKey(key));
     current_->deleted_values_.push_back(DecodeValue(v));
   }
@@ -35,14 +35,14 @@ public:
   static const int kCacheSize = 1000;
   std::vector<int> deleted_keys_;
   std::vector<int> deleted_values_;
-  Cache *cache_;
+  Cache* cache_;
 
   CacheTest() : cache_(NewLRUCache(kCacheSize)) { current_ = this; }
 
   ~CacheTest() { delete cache_; }
 
   int Lookup(int key) {
-    Cache::Handle *handle = cache_->Lookup(EncodeKey(key));
+    Cache::Handle* handle = cache_->Lookup(EncodeKey(key));
     const int r = (handle == nullptr) ? -1 : DecodeValue(cache_->Value(handle));
     if (handle != nullptr) {
       cache_->Release(handle);
@@ -55,14 +55,14 @@ public:
                                    &CacheTest::Deleter));
   }
 
-  Cache::Handle *InsertAndReturnHandle(int key, int value, int charge = 1) {
+  Cache::Handle* InsertAndReturnHandle(int key, int value, int charge = 1) {
     return cache_->Insert(EncodeKey(key), EncodeValue(value), charge,
                           &CacheTest::Deleter);
   }
 
   void Erase(int key) { cache_->Erase(EncodeKey(key)); }
 };
-CacheTest *CacheTest::current_;
+CacheTest* CacheTest::current_;
 
 TEST(CacheTest, HitAndMiss) {
   ASSERT_EQ(-1, Lookup(100));
@@ -108,11 +108,11 @@ TEST(CacheTest, Erase) {
 
 TEST(CacheTest, EntriesArePinned) {
   Insert(100, 101);
-  Cache::Handle *h1 = cache_->Lookup(EncodeKey(100));
+  Cache::Handle* h1 = cache_->Lookup(EncodeKey(100));
   ASSERT_EQ(101, DecodeValue(cache_->Value(h1)));
 
   Insert(100, 102);
-  Cache::Handle *h2 = cache_->Lookup(EncodeKey(100));
+  Cache::Handle* h2 = cache_->Lookup(EncodeKey(100));
   ASSERT_EQ(102, DecodeValue(cache_->Value(h2)));
   ASSERT_EQ(0, deleted_keys_.size());
 
@@ -135,7 +135,7 @@ TEST(CacheTest, EvictionPolicy) {
   Insert(100, 101);
   Insert(200, 201);
   Insert(300, 301);
-  Cache::Handle *h = cache_->Lookup(EncodeKey(300));
+  Cache::Handle* h = cache_->Lookup(EncodeKey(300));
 
   // Frequently used entry must be kept around,
   // as must things that are still in use.
@@ -152,7 +152,7 @@ TEST(CacheTest, EvictionPolicy) {
 
 TEST(CacheTest, UseExceedsCacheSize) {
   // Overfill the cache, keeping handles on all inserted entries.
-  std::vector<Cache::Handle *> h;
+  std::vector<Cache::Handle*> h;
   for (int i = 0; i < kCacheSize + 100; i++) {
     h.push_back(InsertAndReturnHandle(1000 + i, 2000 + i));
   }
@@ -204,7 +204,7 @@ TEST(CacheTest, Prune) {
   Insert(1, 100);
   Insert(2, 200);
 
-  Cache::Handle *handle = cache_->Lookup(EncodeKey(1));
+  Cache::Handle* handle = cache_->Lookup(EncodeKey(1));
   ASSERT_TRUE(handle);
   cache_->Prune();
   cache_->Release(handle);
@@ -221,6 +221,6 @@ TEST(CacheTest, ZeroSizeCache) {
   ASSERT_EQ(-1, Lookup(1));
 }
 
-} // namespace leveldb
+}  // namespace leveldb
 
-int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
+int main(int argc, char** argv) { return leveldb::test::RunAllTests(); }

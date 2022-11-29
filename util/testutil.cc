@@ -9,15 +9,15 @@
 namespace leveldb {
 namespace test {
 
-Slice RandomString(Random *rnd, int len, std::string *dst) {
+Slice RandomString(Random* rnd, int len, std::string* dst) {
   dst->resize(len);
   for (int i = 0; i < len; i++) {
-    (*dst)[i] = static_cast<char>(' ' + rnd->Uniform(95)); // ' ' .. '~'
+    (*dst)[i] = static_cast<char>(' ' + rnd->Uniform(95));  // ' ' .. '~'
   }
   return Slice(*dst);
 }
 
-std::string RandomKey(Random *rnd, int len) {
+std::string RandomKey(Random* rnd, int len) {
   // Make sure to generate a wide variety of characters so we
   // test the boundary conditions for short-key optimizations.
   static const char kTestChars[] = {'\0', '\1', 'a',    'b',    'c',
@@ -29,11 +29,10 @@ std::string RandomKey(Random *rnd, int len) {
   return result;
 }
 
-Slice CompressibleString(Random *rnd, double compressed_fraction, size_t len,
-                         std::string *dst) {
+Slice CompressibleString(Random* rnd, double compressed_fraction, size_t len,
+                         std::string* dst) {
   int raw = static_cast<int>(len * compressed_fraction);
-  if (raw < 1)
-    raw = 1;
+  if (raw < 1) raw = 1;
   std::string raw_data;
   RandomString(rnd, raw, &raw_data);
 
@@ -46,5 +45,5 @@ Slice CompressibleString(Random *rnd, double compressed_fraction, size_t len,
   return Slice(*dst);
 }
 
-} // namespace test
-} // namespace leveldb
+}  // namespace test
+}  // namespace leveldb

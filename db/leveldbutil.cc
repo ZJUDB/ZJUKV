@@ -2,17 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
+#include <stdio.h>
 #include "leveldb/dumpfile.h"
 #include "leveldb/env.h"
 #include "leveldb/status.h"
-#include <stdio.h>
 
 namespace leveldb {
 namespace {
 
 class StdoutPrinter : public WritableFile {
-public:
-  virtual Status Append(const Slice &data) {
+ public:
+  virtual Status Append(const Slice& data) {
     fwrite(data.data(), 1, data.size(), stdout);
     return Status::OK();
   }
@@ -21,7 +21,7 @@ public:
   virtual Status Sync() { return Status::OK(); }
 };
 
-bool HandleDumpCommand(Env *env, char **files, int num) {
+bool HandleDumpCommand(Env* env, char** files, int num) {
   StdoutPrinter printer;
   bool ok = true;
   for (int i = 0; i < num; i++) {
@@ -34,8 +34,8 @@ bool HandleDumpCommand(Env *env, char **files, int num) {
   return ok;
 }
 
-} // namespace
-} // namespace leveldb
+}  // namespace
+}  // namespace leveldb
 
 static void Usage() {
   fprintf(stderr,
@@ -43,8 +43,8 @@ static void Usage() {
           "   dump files...         -- dump contents of specified files\n");
 }
 
-int main(int argc, char **argv) {
-  leveldb::Env *env = leveldb::Env::Default();
+int main(int argc, char** argv) {
+  leveldb::Env* env = leveldb::Env::Default();
   bool ok = true;
   if (argc < 2) {
     Usage();

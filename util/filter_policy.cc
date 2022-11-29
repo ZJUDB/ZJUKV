@@ -9,4 +9,4 @@ namespace leveldb {
 FilterPolicy::~FilterPolicy() {}
 
 DynamicFilter::~DynamicFilter() {}
-} // namespace leveldb
+}  // namespace leveldb

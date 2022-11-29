@@ -29,8 +29,8 @@ class SegmentManager;
 // format
 //
 class MiniRunIndexEntry {
-public:
-  MiniRunIndexEntry(const Slice &data);
+ public:
+  MiniRunIndexEntry(const Slice& data);
 
   Slice GetBlockIndexData() const;
 
@@ -46,9 +46,9 @@ public:
 
   static MiniRunIndexEntry Build(uint32_t seg_no, uint32_t run_no,
                                  Slice block_index_data, Slice filter_data,
-                                 size_t run_datasize, std::string *buf);
+                                 size_t run_datasize, std::string* buf);
 
-private:
+ private:
   Slice raw_data_;
   uint32_t segment_number_;
   uint32_t run_no_within_segment_;
@@ -58,8 +58,8 @@ private:
 };
 
 class LeafIndexEntry {
-public:
-  LeafIndexEntry(const Slice &data = Slice());
+ public:
+  LeafIndexEntry(const Slice& data = Slice());
 
   enum TraversalOrder { forward, backward };
 
@@ -68,12 +68,12 @@ public:
   bool Empty() const { return GetNumMiniRuns() == 0; }
 
   // Return all index entries of MiniRun sorted on insert time
-  std::vector<MiniRunIndexEntry>
-  GetAllMiniRunIndexEntry(TraversalOrder order = backward) const;
+  std::vector<MiniRunIndexEntry> GetAllMiniRunIndexEntry(
+      TraversalOrder order = backward) const;
 
   // Iterate over all index entries of MiniRun with given order
   void ForEachMiniRunIndexEntry(
-      std::function<bool(const MiniRunIndexEntry &, uint32_t)> processor,
+      std::function<bool(const MiniRunIndexEntry&, uint32_t)> processor,
       TraversalOrder order = backward) const;
 
   Slice GetRawData() const { return raw_data_; }
@@ -82,32 +82,31 @@ public:
 
   size_t GetLeafDataSize() const;
 
-private:
+ private:
   Slice raw_data_;
 };
 
 class LeafIndexEntryBuilder {
-public:
+ public:
   LeafIndexEntryBuilder() = delete;
 
-  LeafIndexEntryBuilder(const LeafIndexEntryBuilder &) = delete;
+  LeafIndexEntryBuilder(const LeafIndexEntryBuilder&) = delete;
 
-  LeafIndexEntry operator=(const LeafIndexEntryBuilder &) = delete;
+  LeafIndexEntry operator=(const LeafIndexEntryBuilder&) = delete;
 
-  static void
-  AppendMiniRunIndexEntry(const LeafIndexEntry &base,
-                          const MiniRunIndexEntry &minirun_index_entry,
-                          std::string *buf, LeafIndexEntry *new_entry);
+  static void AppendMiniRunIndexEntry(
+      const LeafIndexEntry& base, const MiniRunIndexEntry& minirun_index_entry,
+      std::string* buf, LeafIndexEntry* new_entry);
 
-  static Status ReplaceMiniRunRange(const LeafIndexEntry &base, uint32_t start,
+  static Status ReplaceMiniRunRange(const LeafIndexEntry& base, uint32_t start,
                                     uint32_t end,
-                                    const MiniRunIndexEntry &replacement,
-                                    std::string *buf,
-                                    LeafIndexEntry *new_entry);
+                                    const MiniRunIndexEntry& replacement,
+                                    std::string* buf,
+                                    LeafIndexEntry* new_entry);
 
-  static Status RemoveMiniRunRange(const LeafIndexEntry &base, uint32_t start,
-                                   uint32_t end, std::string *buf,
-                                   LeafIndexEntry *new_entry);
+  static Status RemoveMiniRunRange(const LeafIndexEntry& base, uint32_t start,
+                                   uint32_t end, std::string* buf,
+                                   LeafIndexEntry* new_entry);
 };
 
 /*
@@ -126,7 +125,7 @@ public:
  * future GC efficiency.
  */
 class LeafStatStore {
-public:
+ public:
   static constexpr int read_interval_in_micros = 5000000;
   static constexpr double read_hotness_exp_smooth_factor = 0.8;
   static constexpr double write_hotness_exp_smooth_factor = 0.8;
@@ -142,61 +141,60 @@ public:
     int num_runs;
   };
 
-  void NewLeaf(const std::string &key) {
+  void NewLeaf(const std::string& key) {
     MutexLock g(&lock);
     m[key] = {-1, 0, 0, (long long)Env::Default()->NowMicros() / 1000000, 0, 0};
   }
 
-  void NewLeaf(const std::string &key, int num_runs) {
+  void NewLeaf(const std::string& key, int num_runs) {
     MutexLock g(&lock);
-    m[key] = {-1, 0, 0, (long long)Env::Default()->NowMicros() / 1000000, 0, num_runs};
+    m[key] = {-1, 0,       0, (long long)Env::Default()->NowMicros() / 1000000,
+              0,  num_runs};
   }
 
-  void IncrementLeafReads(const std::string &leaf_key) {
+  void IncrementLeafReads(const std::string& leaf_key) {
     MutexLock g(&lock);
     auto it = m.find(leaf_key);
-    if (it == m.end()){
+    if (it == m.end()) {
       /* g.Release();
       NewLeaf(leaf_key);
       IncrementLeafReads(leaf_key); */
-      return;      
+      return;
     }
-    LeafStat &stat = it->second;
+    LeafStat& stat = it->second;
     ++stat.reads_in_last_interval;
   }
 
-  double GetWriteHotness(const std::string &leaf_key) {
+  double GetWriteHotness(const std::string& leaf_key) {
     MutexLock g(&lock);
     auto it = m.find(leaf_key);
-    if (it == m.end())
-      return -1;
+    if (it == m.end()) return -1;
     return it->second.write_hotness;
   }
 
-  double GetReadHotness(const std::string &leaf_key) {
+  double GetReadHotness(const std::string& leaf_key) {
     MutexLock g(&lock);
     auto it = m.find(leaf_key);
-    if (it == m.end())
-      return -1;
+    if (it == m.end()) return -1;
     return it->second.read_hotness;
   }
 
-  void DeleteLeaf(const std::string &leaf_key) {
+  void DeleteLeaf(const std::string& leaf_key) {
     MutexLock g(&lock);
     m.erase(leaf_key);
   }
 
-  void UpdateLeafNumRuns(const std::string &leaf_key, int num_runs) {
+  void UpdateLeafNumRuns(const std::string& leaf_key, int num_runs) {
     MutexLock g(&lock);
     auto it = m.find(leaf_key);
     if (it == m.end()) {
       return;
     }
-    LeafStat &stat = it->second;
+    LeafStat& stat = it->second;
     stat.num_runs = num_runs;
   }
 
-  void UpdateWriteHotness(const std::string &leaf_key, int writes) {
+  void UpdateWriteHotness(const std::string& leaf_key, int writes) {
     MutexLock g(&lock);
     auto it = m.find(leaf_key);
     if (it == m.end()) {
@@ -206,7 +204,7 @@ public:
       return;
     }
 
-    LeafStat &stat = it->second;
+    LeafStat& stat = it->second;
     long long cur_time_in_s = Env::Default()->NowMicros() / 1000000;
     // We weight the writes by the inverse of the amount of time elapsed since
     // last update. Therefore, the longer the elapsed time is, the less the
@@ -220,16 +218,15 @@ public:
     stat.last_write_time_in_s = cur_time_in_s;
   }
 
-  void SplitLeaf(const std::string &leaf_key,
-                 std::vector<std::string> &splitted_keys) {
+  void SplitLeaf(const std::string& leaf_key,
+                 std::vector<std::string>& splitted_keys) {
     // leaf_key is splitted into (first_half_key, leaf_key)
     MutexLock g(&lock);
-    if (m.find(leaf_key) == m.end())
-      return;
+    if (m.find(leaf_key) == m.end()) return;
     LeafStat original_leaf_stat = m[leaf_key];
     m.erase(leaf_key);
-    for (auto &subkey : splitted_keys) {
-      LeafStat &new_leaf_stat = m[subkey] = {
+    for (auto& subkey : splitted_keys) {
+      LeafStat& new_leaf_stat = m[subkey] = {
           -1, 0, 0, (long long)Env::Default()->NowMicros() / 1000000, 0, 1};
       new_leaf_stat.write_hotness =
           original_leaf_stat.write_hotness / splitted_keys.size();
@@ -245,21 +242,21 @@ public:
 
   void UpdateReadHotness() {
     MutexLock g(&lock);
-    for (auto &kv : m) {
+    for (auto& kv : m) {
       UpdateReadHotnessForOneLeaf(kv.second);
     }
   }
 
   void ForEachLeaf(
-      std::function<void(const std::string &, const LeafStat &)> processor) {
+      std::function<void(const std::string&, const LeafStat&)> processor) {
     MutexLock g(&lock);
     // printf( "Leaf nums : %ld \n",  m.size() );
-    for (auto &kv : m) {
+    for (auto& kv : m) {
       processor(kv.first, kv.second);
     }
   }
 
-private:
+ private:
   double ExpSmoothUpdate(double old, double new_sample, double factor) {
     return old * (1 - factor) + new_sample * factor;
   }
@@ -270,7 +267,7 @@ private:
            current_interval_reads * read_hotness_exp_smooth_factor;
   }
 
-  void UpdateReadHotnessForOneLeaf(LeafStat &stat) {
+  void UpdateReadHotnessForOneLeaf(LeafStat& stat) {
     stat.read_hotness =
         ExpSmoothUpdate(stat.read_hotness, stat.reads_in_last_interval,
                         read_hotness_exp_smooth_factor);
@@ -282,42 +279,44 @@ private:
 };
 
 class LeafStore {
-public:
-  static Status Open(SegmentManager *seg_manager, DB *leaf_index,
-                     const Options &options, const Comparator *user_cmp,
-                     LeafStore **store);
+ public:
+  static Status Open(SegmentManager* seg_manager, DB* leaf_index,
+                     const Options& options, const Comparator* user_cmp,
+                     LeafStore** store);
 
-  Status Get(const ReadOptions &options, const LookupKey &key,
-             std::string *value, LeafStatStore &stat_store);
+  Status Get(const ReadOptions& options, const LookupKey& key,
+             std::string* value, LeafStatStore& stat_store);
 
-  Iterator *NewIterator(const ReadOptions &options);
+  Iterator* NewIterator(const ReadOptions& options);
 
-  Iterator *NewIteratorForLeaf(
-      const ReadOptions &options, const LeafIndexEntry &leaf_index_entry,
-      Status &s, uint32_t start_minirun_no = 0,
+  Iterator* NewIteratorForLeaf(
+      const ReadOptions& options, const LeafIndexEntry& leaf_index_entry,
+      Status& s, uint32_t start_minirun_no = 0,
       uint32_t end_minirun_no = std::numeric_limits<uint32_t>::max());
 
-  Iterator *NewDBIterForLeaf(
-      const ReadOptions &options, const LeafIndexEntry &leaf_index_entry,
-      Status &s, const Comparator *user_comparator, SequenceNumber seq,
+  Iterator* NewDBIterForLeaf(
+      const ReadOptions& options, const LeafIndexEntry& leaf_index_entry,
+      Status& s, const Comparator* user_comparator, SequenceNumber seq,
       uint32_t start_minirun_no = 0,
       uint32_t end_minirun_no = std::numeric_limits<uint32_t>::max());
 
-private:
+ private:
   class LeafStoreIterator;
 
-  LeafStore(SegmentManager *seg_manager, DB *leaf_index, const Options &options,
-            const Comparator *user_cmp)
-      : seg_manager_(seg_manager), leaf_index_(leaf_index), options_(options),
+  LeafStore(SegmentManager* seg_manager, DB* leaf_index, const Options& options,
+            const Comparator* user_cmp)
+      : seg_manager_(seg_manager),
+        leaf_index_(leaf_index),
+        options_(options),
         user_cmp_(user_cmp) {}
 
-  SegmentManager *seg_manager_;
-  DB *leaf_index_;
+  SegmentManager* seg_manager_;
+  DB* leaf_index_;
   const Options options_;
-  const Comparator *user_cmp_ = nullptr;
+  const Comparator* user_cmp_ = nullptr;
 };
 
-} // namespace silkstore
-} // namespace leveldb
+}  // namespace silkstore
+}  // namespace leveldb
 
-#endif // SILKSTORE_LEAF_INDEX_H
+#endif  // SILKSTORE_LEAF_INDEX_H

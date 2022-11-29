@@ -16,22 +16,22 @@
 #ifndef STORAGE_LEVELDB_INCLUDE_FILTER_POLICY_H_
 #define STORAGE_LEVELDB_INCLUDE_FILTER_POLICY_H_
 
-#include "leveldb/export.h"
 #include <string>
+#include "leveldb/export.h"
 
 namespace leveldb {
 
 class Slice;
 
 class LEVELDB_EXPORT FilterPolicy {
-public:
+ public:
   virtual ~FilterPolicy();
 
   // Return the name of this policy.  Note that if the filter encoding
   // changes in an incompatible way, the name returned by this method
   // must be changed.  Otherwise, old incompatible filters may be
   // passed to methods of this type.
-  virtual const char *Name() const = 0;
+  virtual const char* Name() const = 0;
 
   // keys[0,n-1] contains a list of keys (potentially with duplicates)
   // that are ordered according to the user supplied comparator.
@@ -39,15 +39,15 @@ public:
   //
   // Warning: do not change the initial contents of *dst.  Instead,
   // append the newly constructed filter to *dst.
-  virtual void CreateFilter(const Slice *keys, int n,
-                            std::string *dst) const = 0;
+  virtual void CreateFilter(const Slice* keys, int n,
+                            std::string* dst) const = 0;
 
   // "filter" contains the data appended by a preceding call to
   // CreateFilter() on this class.  This method must return true if
   // the key was in the list of keys passed to CreateFilter().
   // This method may return true or false if the key was not on the
   // list, but it should aim to return false with a high probability.
-  virtual bool KeyMayMatch(const Slice &key, const Slice &filter) const = 0;
+  virtual bool KeyMayMatch(const Slice& key, const Slice& filter) const = 0;
 };
 
 // Return a new filter policy that uses a bloom filter with approximately
@@ -64,22 +64,22 @@ public:
 // ignores trailing spaces, it would be incorrect to use a
 // FilterPolicy (like NewBloomFilterPolicy) that does not ignore
 // trailing spaces in keys.
-LEVELDB_EXPORT const FilterPolicy *NewBloomFilterPolicy(int bits_per_key);
+LEVELDB_EXPORT const FilterPolicy* NewBloomFilterPolicy(int bits_per_key);
 
 class LEVELDB_EXPORT DynamicFilter {
-public:
+ public:
   virtual ~DynamicFilter();
 
   // Add a key to this filter
   virtual void Add(const Slice key) = 0;
 
   // Check if the key is possibily in the filter
-  virtual bool KeyMayMatch(const Slice &key) = 0;
+  virtual bool KeyMayMatch(const Slice& key) = 0;
 };
 
-LEVELDB_EXPORT DynamicFilter *NewDynamicFilterBloom(int entries,
+LEVELDB_EXPORT DynamicFilter* NewDynamicFilterBloom(int entries,
                                                     double fp_rate);
 
-} // namespace leveldb
+}  // namespace leveldb
 
-#endif // STORAGE_LEVELDB_INCLUDE_FILTER_POLICY_H_
+#endif  // STORAGE_LEVELDB_INCLUDE_FILTER_POLICY_H_

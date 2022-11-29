@@ -33,27 +33,27 @@ namespace silkstore {
 class NvmManager;
 
 class Nvmem {
-private:
-  char *data_;
-  NvmManager *nvmem_manger_;
+ private:
+  char* data_;
+  NvmManager* nvmem_manger_;
   size_t index_;
   size_t size_;
   size_t remain_;
 
-public:
+ public:
   Nvmem();
-  Nvmem(char *data, size_t size, NvmManager *nvmem_manger);
+  Nvmem(char* data, size_t size, NvmManager* nvmem_manger);
   ~Nvmem();
   bool UpdateCounter(size_t counters);
   bool UpdateIndex(size_t index);
   size_t GetCounter();
   uint64_t GetBeginAddress();
-  uint64_t Insert(const char *, int);
+  uint64_t Insert(const char*, int);
 
   void print();
 };
 
-} // namespace silkstore
-} // namespace leveldb
+}  // namespace silkstore
+}  // namespace leveldb
 
 #endif

@@ -16,7 +16,7 @@
 namespace leveldb {
 
 class RecoveryTest {
-public:
+ public:
   RecoveryTest() : env_(Env::Default()), db_(nullptr) {
     dbname_ = test::TmpDir() + "/recovery_test";
     DestroyDB(dbname_, Options());
@@ -28,11 +28,11 @@ public:
     DestroyDB(dbname_, Options());
   }
 
-  DBImpl *dbfull() const { return reinterpret_cast<DBImpl *>(db_); }
-  Env *env() const { return env_; }
+  DBImpl* dbfull() const { return reinterpret_cast<DBImpl*>(db_); }
+  Env* env() const { return env_; }
 
   bool CanAppend() {
-    WritableFile *tmp;
+    WritableFile* tmp;
     Status s = env_->NewAppendableFile(CurrentFileName(dbname_), &tmp);
     delete tmp;
     if (s.IsNotSupportedError()) {
@@ -47,13 +47,13 @@ public:
     db_ = nullptr;
   }
 
-  Status OpenWithStatus(Options *options = nullptr) {
+  Status OpenWithStatus(Options* options = nullptr) {
     Close();
     Options opts;
     if (options != nullptr) {
       opts = *options;
     } else {
-      opts.reuse_logs = true; // TODO(sanjay): test both ways
+      opts.reuse_logs = true;  // TODO(sanjay): test both ways
       opts.create_if_missing = true;
     }
     if (opts.env == nullptr) {
@@ -62,16 +62,16 @@ public:
     return DB::Open(opts, dbname_, &db_);
   }
 
-  void Open(Options *options = nullptr) {
+  void Open(Options* options = nullptr) {
     ASSERT_OK(OpenWithStatus(options));
     ASSERT_EQ(1, NumLogs());
   }
 
-  Status Put(const std::string &k, const std::string &v) {
+  Status Put(const std::string& k, const std::string& v) {
     return db_->Put(WriteOptions(), k, v);
   }
 
-  std::string Get(const std::string &k, const Snapshot *snapshot = nullptr) {
+  std::string Get(const std::string& k, const Snapshot* snapshot = nullptr) {
     std::string result;
     Status s = db_->Get(ReadOptions(), k, &result);
     if (s.IsNotFound()) {
@@ -124,7 +124,7 @@ public:
 
   int NumTables() { return GetFiles(kTableFile).size(); }
 
-  uint64_t FileSize(const std::string &fname) {
+  uint64_t FileSize(const std::string& fname) {
     uint64_t result;
     ASSERT_OK(env_->GetFileSize(fname, &result)) << fname;
     return result;
@@ -135,7 +135,7 @@ public:
   // Directly construct a log file that sets key to val.
   void MakeLogFile(uint64_t lognum, SequenceNumber seq, Slice key, Slice val) {
     std::string fname = LogFileName(dbname_, lognum);
-    WritableFile *file;
+    WritableFile* file;
     ASSERT_OK(env_->NewWritableFile(fname, &file));
     log::Writer writer(file);
     WriteBatch batch;
@@ -146,10 +146,10 @@ public:
     delete file;
   }
 
-private:
+ private:
   std::string dbname_;
-  Env *env_;
-  DB *db_;
+  Env* env_;
+  DB* db_;
 };
 
 TEST(RecoveryTest, ManifestReused) {
@@ -180,7 +180,7 @@ TEST(RecoveryTest, LargeManifestCompacted) {
   // Pad with zeroes to make manifest file very big.
   {
     uint64_t len = FileSize(old_manifest);
-    WritableFile *file;
+    WritableFile* file;
     ASSERT_OK(env()->NewAppendableFile(old_manifest, &file));
     std::string zeroes(3 * 1048576 - static_cast<size_t>(len), 0);
     ASSERT_OK(file->Append(zeroes));
@@ -322,6 +322,6 @@ TEST(RecoveryTest, ManifestMissing) {
   ASSERT_TRUE(status.IsCorruption());
 }
 
-} // namespace leveldb
+}  // namespace leveldb
 
-int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
+int main(int argc, char** argv) { return leveldb::test::RunAllTests(); }

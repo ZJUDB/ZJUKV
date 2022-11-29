@@ -21,17 +21,16 @@ namespace leveldb {
 //   }
 
 class SCOPED_LOCKABLE MutexLock {
-public:
-  explicit MutexLock(port::Mutex *mu) EXCLUSIVE_LOCK_FUNCTION(mu) : mu_(mu) {
+ public:
+  explicit MutexLock(port::Mutex* mu) EXCLUSIVE_LOCK_FUNCTION(mu) : mu_(mu) {
     this->mu_->Lock();
   }
   ~MutexLock() UNLOCK_FUNCTION() {
-    if (this->mu_)
-      this->mu_->Unlock();
+    if (this->mu_) this->mu_->Unlock();
   }
 
-  MutexLock(const MutexLock &) = delete;
-  MutexLock &operator=(const MutexLock &) = delete;
+  MutexLock(const MutexLock&) = delete;
+  MutexLock& operator=(const MutexLock&) = delete;
   void Release() {
     if (this->mu_) {
       this->mu_->Unlock();
@@ -39,10 +38,10 @@ public:
     }
   }
 
-private:
-  port::Mutex *mu_;
+ private:
+  port::Mutex* mu_;
 };
 
-} // namespace leveldb
+}  // namespace leveldb
 
-#endif // STORAGE_LEVELDB_UTIL_MUTEXLOCK_H_
+#endif  // STORAGE_LEVELDB_UTIL_MUTEXLOCK_H_

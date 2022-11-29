@@ -15,7 +15,7 @@ namespace log {
 
 // Construct a string of the specified length made out of the supplied
 // partial string.
-static std::string BigString(const std::string &partial_string, size_t n) {
+static std::string BigString(const std::string& partial_string, size_t n) {
   std::string result;
   while (result.size() < n) {
     result.append(partial_string);
@@ -32,33 +32,33 @@ static std::string NumberString(int n) {
 }
 
 // Return a skewed potentially long string
-static std::string RandomSkewedString(int i, Random *rnd) {
+static std::string RandomSkewedString(int i, Random* rnd) {
   return BigString(NumberString(i), rnd->Skewed(17));
 }
 
 class LogTest {
-private:
+ private:
   class StringDest : public WritableFile {
-  public:
+   public:
     std::string contents_;
 
     virtual Status Close() { return Status::OK(); }
     virtual Status Flush() { return Status::OK(); }
     virtual Status Sync() { return Status::OK(); }
-    virtual Status Append(const Slice &slice) {
+    virtual Status Append(const Slice& slice) {
       contents_.append(slice.data(), slice.size());
       return Status::OK();
     }
   };
 
   class StringSource : public SequentialFile {
-  public:
+   public:
     Slice contents_;
     bool force_error_;
     bool returned_partial_;
     StringSource() : force_error_(false), returned_partial_(false) {}
 
-    virtual Status Read(size_t n, Slice *result, char *scratch) {
+    virtual Status Read(size_t n, Slice* result, char* scratch) {
       ASSERT_TRUE(!returned_partial_) << "must not Read() after eof/error";
 
       if (force_error_) {
@@ -89,12 +89,12 @@ private:
   };
 
   class ReportCollector : public Reader::Reporter {
-  public:
+   public:
     size_t dropped_bytes_;
     std::string message_;
 
     ReportCollector() : dropped_bytes_(0) {}
-    virtual void Corruption(size_t bytes, const Status &status) {
+    virtual void Corruption(size_t bytes, const Status& status) {
       dropped_bytes_ += bytes;
       message_.append(status.ToString());
     }
@@ -104,17 +104,18 @@ private:
   StringSource source_;
   ReportCollector report_;
   bool reading_;
-  Writer *writer_;
-  Reader *reader_;
+  Writer* writer_;
+  Reader* reader_;
 
   // Record metadata for testing initial offset functionality
   static size_t initial_offset_record_sizes_[];
   static uint64_t initial_offset_last_record_offsets_[];
   static int num_initial_offset_records_;
 
-public:
+ public:
   LogTest()
-      : reading_(false), writer_(new Writer(&dest_)),
+      : reading_(false),
+        writer_(new Writer(&dest_)),
         reader_(new Reader(&source_, &report_, true /*checksum*/,
                            0 /*initial_offset*/)) {}
 
@@ -128,7 +129,7 @@ public:
     writer_ = new Writer(&dest_, dest_.contents_.size());
   }
 
-  void Write(const std::string &msg) {
+  void Write(const std::string& msg) {
     ASSERT_TRUE(!reading_) << "Write() after starting to read";
     writer_->AddRecord(Slice(msg));
   }
@@ -175,7 +176,7 @@ public:
   std::string ReportMessage() const { return report_.message_; }
 
   // Returns OK iff recorded error message contains "msg"
-  std::string MatchError(const std::string &msg) const {
+  std::string MatchError(const std::string& msg) const {
     if (report_.message_.find(msg) == std::string::npos) {
       return report_.message_;
     } else {
@@ -200,7 +201,7 @@ public:
     WriteInitialOffsetLog();
     reading_ = true;
     source_.contents_ = Slice(dest_.contents_);
-    Reader *offset_reader = new Reader(&source_, &report_, true /*checksum*/,
+    Reader* offset_reader = new Reader(&source_, &report_, true /*checksum*/,
                                        WrittenBytes() + offset_past_end);
     Slice record;
     std::string scratch;
@@ -213,7 +214,7 @@ public:
     WriteInitialOffsetLog();
     reading_ = true;
     source_.contents_ = Slice(dest_.contents_);
-    Reader *offset_reader =
+    Reader* offset_reader =
         new Reader(&source_, &report_, true /*checksum*/, initial_offset);
 
     // Read all records from expected_record_offset through the last one.
@@ -234,12 +235,12 @@ public:
 };
 
 size_t LogTest::initial_offset_record_sizes_[] = {
-    10000, // Two sizable records in first block
+    10000,  // Two sizable records in first block
     10000,
-    2 * log::kBlockSize - 1000, // Span three blocks
+    2 * log::kBlockSize - 1000,  // Span three blocks
     1,
-    13716,                         // Consume all but two bytes of block 3.
-    log::kBlockSize - kHeaderSize, // Consume the entirety of block 4.
+    13716,                          // Consume all but two bytes of block 3.
+    log::kBlockSize - kHeaderSize,  // Consume the entirety of block 4.
 };
 
 uint64_t LogTest::initial_offset_last_record_offsets_[] = {
@@ -268,7 +269,7 @@ TEST(LogTest, ReadWrite) {
   ASSERT_EQ("", Read());
   ASSERT_EQ("xxxx", Read());
   ASSERT_EQ("EOF", Read());
-  ASSERT_EQ("EOF", Read()); // Make sure reads at eof work
+  ASSERT_EQ("EOF", Read());  // Make sure reads at eof work
 }
 
 TEST(LogTest, ManyBlocks) {
@@ -381,7 +382,7 @@ TEST(LogTest, BadRecordType) {
 
 TEST(LogTest, TruncatedTrailingRecordIsIgnored) {
   Write("foo");
-  ShrinkSize(4); // Drop all payload as well as a header byte
+  ShrinkSize(4);  // Drop all payload as well as a header byte
   ASSERT_EQ("EOF", Read());
   // Truncated last record is ignored, not treated as an error.
   ASSERT_EQ(0, DroppedBytes());
@@ -539,9 +540,9 @@ TEST(LogTest, ReadFourthLastBlock) {
 }
 
 TEST(LogTest, ReadFourthStart) {
-  CheckInitialOffsetRecord(2 * (kHeaderSize + 1000) +
-                               (2 * log::kBlockSize - 1000) + 3 * kHeaderSize,
-                           3);
+  CheckInitialOffsetRecord(
+      2 * (kHeaderSize + 1000) + (2 * log::kBlockSize - 1000) + 3 * kHeaderSize,
+      3);
 }
 
 TEST(LogTest, ReadInitialOffsetIntoBlockPadding) {
@@ -552,7 +553,7 @@ TEST(LogTest, ReadEnd) { CheckOffsetPastEndReturnsNoRecords(0); }
 
 TEST(LogTest, ReadPastEnd) { CheckOffsetPastEndReturnsNoRecords(5); }
 
-} // namespace log
-} // namespace leveldb
+}  // namespace log
+}  // namespace leveldb
 
-int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
+int main(int argc, char** argv) { return leveldb::test::RunAllTests(); }

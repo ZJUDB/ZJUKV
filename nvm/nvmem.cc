@@ -1,16 +1,17 @@
 #include "nvm/nvmem.h"
-#include "nvm/nvmmanager.h"
 #include <iostream>
+#include "nvm/nvmmanager.h"
 
 namespace leveldb {
 
 namespace silkstore {
 
 // insert date into nvm
-uint64_t Nvmem::Insert(const char *value, int len) {
+uint64_t Nvmem::Insert(const char* value, int len) {
   // Not enough memory assert
   if (index_ + len >= size_) {
-    fprintf(stderr, " nvm memory is full!  \
+    fprintf(stderr,
+            " nvm memory is full!  \
             index %lu , len: %d , size: %lu \n ",
             index_, len, size_);
     assert(false);
@@ -52,10 +53,10 @@ void Nvmem::print() {
 
 Nvmem::Nvmem() : data_(nullptr), index_(16), size_(0) {}
 
-Nvmem::Nvmem(char *data, size_t size, NvmManager *nvmem_manger)
+Nvmem::Nvmem(char* data, size_t size, NvmManager* nvmem_manger)
     : data_(data), index_(16), size_(size), nvmem_manger_(nvmem_manger) {}
 
 Nvmem::~Nvmem() { nvmem_manger_->free(data_); }
 
-} // namespace silkstore
-} // namespace leveldb
+}  // namespace silkstore
+}  // namespace leveldb

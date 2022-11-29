@@ -2,23 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
+#include <sstream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <unordered_set>
 #include "leveldb/cache.h"
 #include "leveldb/db.h"
 #include "leveldb/env.h"
 #include "leveldb/filter_policy.h"
 #include "leveldb/write_batch.h"
 #include "port/port.h"
-#include "silkstore/silkstore_impl.h"
 #include "util/crc32c.h"
 #include "util/histogram.h"
 #include "util/mutexlock.h"
 #include "util/random.h"
 #include "util/testutil.h"
-#include <sstream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <unordered_set>
+#include "silkstore/silkstore_impl.h"
 
 // Comma-separated list of operations to run in the specified order
 //   Actual benchmarks:
@@ -43,14 +43,14 @@
 //      stats       -- Print DB stats
 //      sstables    -- Print sstable info
 //      heapprofile -- Dump a heap profile (if supported by this port)
-static const char *FLAGS_benchmarks =
+static const char* FLAGS_benchmarks =
     "fillrandom,"
     //"fillseq,"
     //"overwrite,"
-   // "readrandomsmall,"
-    "shortrange,"    
+    // "readrandomsmall,"
+    "shortrange,"
     "readseq,"
-    
+
     //"readrandomsmall," // Extra run to allow previous compactions to quiesce
     /*
      "fillseq,"
@@ -147,14 +147,14 @@ static bool FLAGS_use_existing_db = false;
 static bool FLAGS_reuse_logs = false;
 
 // Use the db with the following name.
-static const char *FLAGS_db = "./nvmsilkstore_benckmark";
+static const char* FLAGS_db = "./nvmsilkstore_benckmark";
 static int FLAGS_leaf_max_num_miniruns = 7;
 static int FLAGS_memtbl_to_L0_ratio = 30;
 // Test db impl type: leveldb/silkstore
-static const char *FLAGS_db_type = "silkstore";
+static const char* FLAGS_db_type = "silkstore";
 
 // Mixed workload spec
-static const char *FLAGS_mixed_wl_spec = nullptr;
+static const char* FLAGS_mixed_wl_spec = nullptr;
 
 static int FLAGS_num_ops_in_mixed_wl = 0;
 
@@ -168,15 +168,15 @@ static double FLAGS_log_dataset_ratio = 2.0;
 namespace leveldb {
 
 namespace {
-leveldb::Env *g_env = nullptr;
+leveldb::Env* g_env = nullptr;
 
 // Helper for quickly generating random data.
 class RandomGenerator {
-private:
+ private:
   std::string data_;
   int pos_;
 
-public:
+ public:
   RandomGenerator() {
     // We use a limited amount of data over and over again and ensure
     // that it is larger than the compression window (32KB), and also
@@ -216,9 +216,8 @@ static Slice TrimSpace(Slice s) {
 }
 #endif
 
-static void AppendWithSpace(std::string *str, Slice msg) {
-  if (msg.empty())
-    return;
+static void AppendWithSpace(std::string* str, Slice msg) {
+  if (msg.empty()) return;
   if (!str->empty()) {
     str->push_back(' ');
   }
@@ -226,7 +225,7 @@ static void AppendWithSpace(std::string *str, Slice msg) {
 }
 
 class Stats {
-private:
+ private:
   double start_;
   double finish_;
   double seconds_;
@@ -240,7 +239,7 @@ private:
   double last_current_report = 0;
   int done_since_last_current_report = 0;
 
-public:
+ public:
   Stats() { Start(); }
 
   void EnableReportCurrent() { report_current = true; }
@@ -258,19 +257,16 @@ public:
     printf("Start bench \n");
   }
 
-  void Merge(const Stats &other) {
+  void Merge(const Stats& other) {
     hist_.Merge(other.hist_);
     done_ += other.done_;
     bytes_ += other.bytes_;
     seconds_ += other.seconds_;
-    if (other.start_ < start_)
-      start_ = other.start_;
-    if (other.finish_ > finish_)
-      finish_ = other.finish_;
+    if (other.start_ < start_) start_ = other.start_;
+    if (other.finish_ > finish_) finish_ = other.finish_;
 
     // Just keep the messages from one thread
-    if (message_.empty())
-      message_ = other.message_;
+    if (message_.empty()) message_ = other.message_;
   }
 
   void Stop() {
@@ -326,11 +322,10 @@ public:
 
   void AddBytes(int64_t n) { bytes_ += n; }
 
-  void Report(const Slice &name) {
+  void Report(const Slice& name) {
     // Pretend at least one op was done in case we are running a benchmark
     // that does not call FinishedSingleOp().
-    if (done_ < 1)
-      done_ = 1;
+    if (done_ < 1) done_ = 1;
 
     std::string extra;
     if (bytes_ > 0) {
@@ -375,39 +370,41 @@ struct SharedState {
 
 // Per-thread state for concurrent executions of the same benchmark.
 struct ThreadState {
-  int tid;     // 0..n-1 when running in n threads
-  Random rand; // Has different seeds for different threads
+  int tid;      // 0..n-1 when running in n threads
+  Random rand;  // Has different seeds for different threads
   Stats stats;
-  SharedState *shared;
+  SharedState* shared;
 
   ThreadState(int index) : tid(index), rand(1000 + index) {}
 };
 
-} // namespace
+}  // namespace
 
 class Workload {
-public:
+ public:
   Workload(int tid, int weight) : tid(tid), weight(weight) {}
-  virtual void work(ThreadState *thread) = 0;
-  virtual void fillone(ThreadState *thread) = 0;
+  virtual void work(ThreadState* thread) = 0;
+  virtual void fillone(ThreadState* thread) = 0;
   virtual ~Workload() {}
   virtual size_t size() const = 0;
   int Weight() { return weight; }
 
-protected:
+ protected:
   int tid;
   int weight;
 };
 
 class ReadWriteWorkload : public Workload {
-public:
-  ReadWriteWorkload(DB *db, int tid, int table_size, int write_ratio_in_percent,
+ public:
+  ReadWriteWorkload(DB* db, int tid, int table_size, int write_ratio_in_percent,
                     int table_weight)
-      : Workload(tid, table_weight), db_(db), table_size(table_size),
+      : Workload(tid, table_weight),
+        db_(db),
+        table_size(table_size),
         write_ratio_in_percent(write_ratio_in_percent),
         value_size_(FLAGS_value_size) {}
 
-  void work(ThreadState *thread) override {
+  void work(ThreadState* thread) override {
     const int k = thread->rand.Next() % table_size;
     snprintf(key, sizeof(key), "%d.%016d", tid, k);
     if (thread->rand.Next() % 100 < write_ratio_in_percent) {
@@ -428,7 +425,7 @@ public:
     thread->stats.FinishedSingleOp();
   }
 
-  void fillone(ThreadState *thread) override {
+  void fillone(ThreadState* thread) override {
     const int k = thread->rand.Next() % table_size;
     snprintf(key, sizeof(key), "%d.%016d", tid, k);
     batch.Clear();
@@ -444,8 +441,8 @@ public:
 
   size_t size() const override { return table_size; }
 
-protected:
-  DB *db_;
+ protected:
+  DB* db_;
   char key[100];
   ReadOptions options;
   std::string value;
@@ -499,43 +496,42 @@ protected:
 //};
 
 class WorkloadSelector {
-public:
-  WorkloadSelector(const std::vector<Workload *> workloads)
+ public:
+  WorkloadSelector(const std::vector<Workload*> workloads)
       : workloads(workloads) {}
   virtual ~WorkloadSelector() {}
-  virtual int Select(ThreadState *thread) = 0;
+  virtual int Select(ThreadState* thread) = 0;
 
-protected:
-  std::vector<Workload *> workloads;
+ protected:
+  std::vector<Workload*> workloads;
 };
 
 class RandomWorkloadSelector : public WorkloadSelector {
-public:
-  RandomWorkloadSelector(const std::vector<Workload *> workloads)
+ public:
+  RandomWorkloadSelector(const std::vector<Workload*> workloads)
       : WorkloadSelector(workloads) {}
 
-  int Select(ThreadState *thread) override {
+  int Select(ThreadState* thread) override {
     return thread->rand.Next() % workloads.size();
   }
 };
 
 class WeightedRandomWorkloadSelector : public WorkloadSelector {
-public:
-  WeightedRandomWorkloadSelector(const std::vector<Workload *> workloads)
+ public:
+  WeightedRandomWorkloadSelector(const std::vector<Workload*> workloads)
       : WorkloadSelector(workloads) {
     for (int i = 0; i < workloads.size(); ++i) {
       int weight = workloads[i]->Weight();
-      for (int j = 0; j < weight; ++j)
-        dice.push_back(i);
+      for (int j = 0; j < weight; ++j) dice.push_back(i);
     }
     std::random_shuffle(dice.begin(), dice.end());
   }
 
-  int Select(ThreadState *thread) override {
+  int Select(ThreadState* thread) override {
     return dice[thread->rand.Next() % dice.size()];
   }
 
-private:
+ private:
   std::vector<int> dice;
 };
 
@@ -543,51 +539,50 @@ private:
 // (${write_ratio}-${table_size}-${weight};) *
 //
 class WorkloadMixture {
-private:
-  std::vector<Workload *> workloads;
-  WorkloadSelector *selector;
+ private:
+  std::vector<Workload*> workloads;
+  WorkloadSelector* selector;
 
-public:
-  WorkloadMixture(const std::vector<Workload *> workloads,
-                  WorkloadSelector *selector)
+ public:
+  WorkloadMixture(const std::vector<Workload*> workloads,
+                  WorkloadSelector* selector)
       : workloads(workloads), selector(selector) {}
 
-  void work(ThreadState *thread) {
+  void work(ThreadState* thread) {
     int wid = selector->Select(thread);
     workloads[wid]->work(thread);
   }
 
-  void fill(ThreadState *thread) {
+  void fill(ThreadState* thread) {
     int wid = selector->Select(thread);
     workloads[wid]->fillone(thread);
   }
 
-  static std::vector<std::string> Split(const std::string &s, char delim) {
+  static std::vector<std::string> Split(const std::string& s, char delim) {
     std::stringstream ss(s);
     std::string item;
     std::vector<std::string> elems;
     while (std::getline(ss, item, delim)) {
       elems.push_back(
-          std::move(item)); // if C++11 (based on comment from @mchiasson)
+          std::move(item));  // if C++11 (based on comment from @mchiasson)
     }
     return elems;
   }
 
-  static WorkloadMixture *ParseFromWorkloadSpec(DB *db,
-                                                const std::string &spec) {
-    std::vector<Workload *> workloads;
+  static WorkloadMixture* ParseFromWorkloadSpec(DB* db,
+                                                const std::string& spec) {
+    std::vector<Workload*> workloads;
     auto parts = Split(spec, ';');
     for (int i = 0; i < parts.size(); ++i) {
       std::string p = parts[i];
-      if (p.empty())
-        continue;
+      if (p.empty()) continue;
       auto wparts = Split(p, '-');
       assert(wparts.size() == 3);
       int write_ratio = std::stoi(wparts[0]);
       int table_size = std::stoi(wparts[1]);
       int table_weight = std::stoi(wparts[2]);
       int tid = i;
-      ReadWriteWorkload *rw =
+      ReadWriteWorkload* rw =
           new ReadWriteWorkload(db, tid, table_size, write_ratio, table_weight);
       workloads.push_back(rw);
     }
@@ -604,10 +599,10 @@ public:
 };
 
 class Benchmark {
-private:
-  Cache *cache_;
-  const FilterPolicy *filter_policy_;
-  DB *db_;
+ private:
+  Cache* cache_;
+  const FilterPolicy* filter_policy_;
+  DB* db_;
   int num_;
   int value_size_;
   int entries_per_batch_;
@@ -672,16 +667,16 @@ private:
 
 #if defined(__linux)
     time_t now = time(nullptr);
-    fprintf(stderr, "Date:       %s", ctime(&now)); // ctime() adds newline
+    fprintf(stderr, "Date:       %s", ctime(&now));  // ctime() adds newline
 
-    FILE *cpuinfo = fopen("/proc/cpuinfo", "r");
+    FILE* cpuinfo = fopen("/proc/cpuinfo", "r");
     if (cpuinfo != nullptr) {
       char line[1000];
       int num_cpus = 0;
       std::string cpu_type;
       std::string cache_size;
       while (fgets(line, sizeof(line), cpuinfo) != nullptr) {
-        const char *sep = strchr(line, ':');
+        const char* sep = strchr(line, ':');
         if (sep == nullptr) {
           continue;
         }
@@ -701,15 +696,18 @@ private:
 #endif
   }
 
-public:
+ public:
   Benchmark()
       : cache_(FLAGS_cache_size >= 0 ? NewLRUCache(FLAGS_cache_size) : nullptr),
         filter_policy_(FLAGS_bloom_bits >= 0
                            ? NewBloomFilterPolicy(FLAGS_bloom_bits)
                            : nullptr),
-        db_(nullptr), num_(FLAGS_num), value_size_(FLAGS_value_size),
+        db_(nullptr),
+        num_(FLAGS_num),
+        value_size_(FLAGS_value_size),
         entries_per_batch_(1),
-        reads_(FLAGS_reads < 0 ? FLAGS_num : FLAGS_reads), heap_counter_(0) {
+        reads_(FLAGS_reads < 0 ? FLAGS_num : FLAGS_reads),
+        heap_counter_(0) {
     std::vector<std::string> files;
     g_env->GetChildren(FLAGS_db, &files);
     for (size_t i = 0; i < files.size(); i++) {
@@ -739,9 +737,9 @@ public:
     PrintHeader();
     Open();
 
-    const char *benchmarks = FLAGS_benchmarks;
+    const char* benchmarks = FLAGS_benchmarks;
     while (benchmarks != nullptr) {
-      const char *sep = strchr(benchmarks, ',');
+      const char* sep = strchr(benchmarks, ',');
       Slice name;
       if (sep == nullptr) {
         name = benchmarks;
@@ -758,15 +756,14 @@ public:
       entries_per_batch_ = 1;
       write_options_ = WriteOptions();
 
-      void (Benchmark::*method)(ThreadState *) = nullptr;
+      void (Benchmark::*method)(ThreadState*) = nullptr;
       bool fresh_db = false;
       int num_threads = FLAGS_threads;
 
       if (name == Slice("open")) {
         method = &Benchmark::OpenBench;
         num_ /= 10000;
-        if (num_ < 1)
-          num_ = 1;
+        if (num_ < 1) num_ = 1;
       } else if (name == Slice("fillseq")) {
         fresh_db = true;
         method = &Benchmark::WriteSeq;
@@ -815,7 +812,7 @@ public:
       } else if (name == Slice("deleterandom")) {
         method = &Benchmark::DeleteRandom;
       } else if (name == Slice("readwhilewriting")) {
-        num_threads++; // Add extra thread for writing
+        num_threads++;  // Add extra thread for writing
         method = &Benchmark::ReadWhileWriting;
       } else if (name == Slice("compact")) {
         method = &Benchmark::Compact;
@@ -840,7 +837,7 @@ public:
         fresh_db = true;
         method = &Benchmark::MixedWorkloadFillRandom;
       } else {
-        if (name != Slice()) { // No error message for empty name
+        if (name != Slice()) {  // No error message for empty name
           fprintf(stderr, "unknown benchmark '%s'\n", name.ToString().c_str());
         }
       }
@@ -868,18 +865,18 @@ public:
     }
   }
 
-private:
+ private:
   struct ThreadArg {
-    Benchmark *bm;
-    SharedState *shared;
-    ThreadState *thread;
-    void (Benchmark::*method)(ThreadState *);
+    Benchmark* bm;
+    SharedState* shared;
+    ThreadState* thread;
+    void (Benchmark::*method)(ThreadState*);
   };
 
-  static void ThreadBody(void *v) {
-    ThreadArg *arg = reinterpret_cast<ThreadArg *>(v);
-    SharedState *shared = arg->shared;
-    ThreadState *thread = arg->thread;
+  static void ThreadBody(void* v) {
+    ThreadArg* arg = reinterpret_cast<ThreadArg*>(v);
+    SharedState* shared = arg->shared;
+    ThreadState* thread = arg->thread;
     {
       MutexLock l(&shared->mu);
       shared->num_initialized++;
@@ -905,10 +902,10 @@ private:
   }
 
   void RunBenchmark(int n, Slice name,
-                    void (Benchmark::*method)(ThreadState *)) {
+                    void (Benchmark::*method)(ThreadState*)) {
     SharedState shared(n);
 
-    ThreadArg *arg = new ThreadArg[n];
+    ThreadArg* arg = new ThreadArg[n];
     for (int i = 0; i < n; i++) {
       arg[i].bm = this;
       arg[i].method = method;
@@ -941,10 +938,10 @@ private:
     delete[] arg;
   }
 
-  void Crc32c(ThreadState *thread) {
+  void Crc32c(ThreadState* thread) {
     // Checksum about 500MB of data total
     const int size = 4096;
-    const char *label = "(4K per op)";
+    const char* label = "(4K per op)";
     std::string data(size, 'x');
     int64_t bytes = 0;
     uint32_t crc = 0;
@@ -960,11 +957,11 @@ private:
     thread->stats.AddMessage(label);
   }
 
-  void AcquireLoad(ThreadState *thread) {
+  void AcquireLoad(ThreadState* thread) {
     int dummy;
     port::AtomicPointer ap(&dummy);
     int count = 0;
-    void *ptr = nullptr;
+    void* ptr = nullptr;
     thread->stats.AddMessage("(each op is 1000 loads)");
     while (count < 100000) {
       for (int i = 0; i < 1000; i++) {
@@ -973,18 +970,17 @@ private:
       count++;
       thread->stats.FinishedSingleOp();
     }
-    if (ptr == nullptr)
-      exit(1); // Disable unused variable warning.
+    if (ptr == nullptr) exit(1);  // Disable unused variable warning.
   }
 
-  void SnappyCompress(ThreadState *thread) {
+  void SnappyCompress(ThreadState* thread) {
     RandomGenerator gen;
     Slice input = gen.Generate(Options().block_size);
     int64_t bytes = 0;
     int64_t produced = 0;
     bool ok = true;
     std::string compressed;
-    while (ok && bytes < 1024 * 1048576) { // Compress 1G
+    while (ok && bytes < 1024 * 1048576) {  // Compress 1G
       ok = port::Snappy_Compress(input.data(), input.size(), &compressed);
       produced += compressed.size();
       bytes += input.size();
@@ -1002,14 +998,14 @@ private:
     }
   }
 
-  void SnappyUncompress(ThreadState *thread) {
+  void SnappyUncompress(ThreadState* thread) {
     RandomGenerator gen;
     Slice input = gen.Generate(Options().block_size);
     std::string compressed;
     bool ok = port::Snappy_Compress(input.data(), input.size(), &compressed);
     int64_t bytes = 0;
-    char *uncompressed = new char[input.size()];
-    while (ok && bytes < 1024 * 1048576) { // Compress 1G
+    char* uncompressed = new char[input.size()];
+    while (ok && bytes < 1024 * 1048576) {  // Compress 1G
       ok = port::Snappy_Uncompress(compressed.data(), compressed.size(),
                                    uncompressed);
       bytes += input.size();
@@ -1062,7 +1058,7 @@ private:
     }
   }
 
-  void OpenBench(ThreadState *thread) {
+  void OpenBench(ThreadState* thread) {
     for (int i = 0; i < num_; i++) {
       delete db_;
       Open();
@@ -1070,11 +1066,11 @@ private:
     }
   }
 
-  void WriteSeq(ThreadState *thread) { DoWrite(thread, true); }
+  void WriteSeq(ThreadState* thread) { DoWrite(thread, true); }
 
-  void WriteRandom(ThreadState *thread) { DoWrite(thread, false); }
+  void WriteRandom(ThreadState* thread) { DoWrite(thread, false); }
 
-  void DoWrite(ThreadState *thread, bool seq) {
+  void DoWrite(ThreadState* thread, bool seq) {
     if (num_ != FLAGS_num) {
       char msg[100];
       snprintf(msg, sizeof(msg), "(%d ops)", num_);
@@ -1124,7 +1120,7 @@ private:
     thread->stats.AddMessage(wm);
   }
 
-  void WriteSkewed(ThreadState *thread) {
+  void WriteSkewed(ThreadState* thread) {
     RandomGenerator gen;
     WriteBatch batch;
     Status s;
@@ -1163,18 +1159,17 @@ private:
     thread->stats.AddMessage(segment_util);
   }
 
-
-void ShortRangeQuery(ThreadState *thread) {
-    Iterator *iter = db_->NewIterator(ReadOptions());
+  void ShortRangeQuery(ThreadState* thread) {
+    Iterator* iter = db_->NewIterator(ReadOptions());
     int64_t bytes = 0;
     int query_nums = 10000;
     int query_lens = 10000;
     int kv_nums = 0;
-    for(int j = 0; j < query_nums; j++){
+    for (int j = 0; j < query_nums; j++) {
       char key[100];
       const int k = thread->rand.Next() % FLAGS_table_size;
       snprintf(key, sizeof(key), "%016d", k);
-      int i = 0;    
+      int i = 0;
       for (iter->Seek(key); i < query_lens && iter->Valid(); iter->Next()) {
         bytes += iter->key().size() + iter->value().size();
         thread->stats.FinishedSingleOp();
@@ -1182,12 +1177,12 @@ void ShortRangeQuery(ThreadState *thread) {
         kv_nums++;
       }
     }
-    
-    printf("Total reads_ %d  avil kv num's : %d \n",reads_ , kv_nums);
+
+    printf("Total reads_ %d  avil kv num's : %d \n", reads_, kv_nums);
 
     delete iter;
     char msg[1000];
-    
+
     std::string runs_searched;
     db_->GetProperty("silkstore.runs_searched", &runs_searched);
     std::string leaf_avg_num_runs;
@@ -1202,8 +1197,8 @@ void ShortRangeQuery(ThreadState *thread) {
     thread->stats.AddMessage(msg);
     thread->stats.AddBytes(bytes);
   }
-  void ReadSequential(ThreadState *thread) {
-    Iterator *iter = db_->NewIterator(ReadOptions());
+  void ReadSequential(ThreadState* thread) {
+    Iterator* iter = db_->NewIterator(ReadOptions());
     int i = 0;
     int64_t bytes = 0;
     for (iter->SeekToFirst(); i < reads_ && iter->Valid(); iter->Next()) {
@@ -1211,7 +1206,7 @@ void ShortRangeQuery(ThreadState *thread) {
       thread->stats.FinishedSingleOp();
       ++i;
     }
-    printf("Total reads_ %d  avil kv num's : %d \n",reads_ , i);
+    printf("Total reads_ %d  avil kv num's : %d \n", reads_, i);
 
     delete iter;
     char msg[100];
@@ -1220,8 +1215,8 @@ void ShortRangeQuery(ThreadState *thread) {
     thread->stats.AddBytes(bytes);
   }
 
-  void ReadReverse(ThreadState *thread) {
-    Iterator *iter = db_->NewIterator(ReadOptions());
+  void ReadReverse(ThreadState* thread) {
+    Iterator* iter = db_->NewIterator(ReadOptions());
     int i = 0;
     int64_t bytes = 0;
     for (iter->SeekToLast(); i < reads_ && iter->Valid(); iter->Prev()) {
@@ -1233,7 +1228,7 @@ void ShortRangeQuery(ThreadState *thread) {
     thread->stats.AddBytes(bytes);
   }
 
-  void ReadRandom(ThreadState *thread) {
+  void ReadRandom(ThreadState* thread) {
     ReadOptions options;
     std::string value;
     int found = 0;
@@ -1270,7 +1265,7 @@ void ShortRangeQuery(ThreadState *thread) {
     // thread->stats.AddMessage(leaf_stats);
   }
 
-  void ReadMissing(ThreadState *thread) {
+  void ReadMissing(ThreadState* thread) {
     ReadOptions options;
     std::string value;
     for (int i = 0; i < reads_; i++) {
@@ -1282,7 +1277,7 @@ void ShortRangeQuery(ThreadState *thread) {
     }
   }
 
-  void ReadHot(ThreadState *thread) {
+  void ReadHot(ThreadState* thread) {
     ReadOptions options;
     std::string value;
     const int range = (FLAGS_table_size + 99) / 100;
@@ -1295,17 +1290,16 @@ void ShortRangeQuery(ThreadState *thread) {
     }
   }
 
-  void SeekRandom(ThreadState *thread) {
+  void SeekRandom(ThreadState* thread) {
     ReadOptions options;
     int found = 0;
     for (int i = 0; i < reads_; i++) {
-      Iterator *iter = db_->NewIterator(options);
+      Iterator* iter = db_->NewIterator(options);
       char key[100];
       const int k = thread->rand.Next() % FLAGS_table_size;
       snprintf(key, sizeof(key), "%016d", k);
       iter->Seek(key);
-      if (iter->Valid() && iter->key() == key)
-        found++;
+      if (iter->Valid() && iter->key() == key) found++;
       delete iter;
       thread->stats.FinishedSingleOp();
     }
@@ -1314,7 +1308,7 @@ void ShortRangeQuery(ThreadState *thread) {
     thread->stats.AddMessage(msg);
   }
 
-  void DoDelete(ThreadState *thread, bool seq) {
+  void DoDelete(ThreadState* thread, bool seq) {
     RandomGenerator gen;
     WriteBatch batch;
     Status s;
@@ -1336,11 +1330,11 @@ void ShortRangeQuery(ThreadState *thread) {
     }
   }
 
-  void DeleteSeq(ThreadState *thread) { DoDelete(thread, true); }
+  void DeleteSeq(ThreadState* thread) { DoDelete(thread, true); }
 
-  void DeleteRandom(ThreadState *thread) { DoDelete(thread, false); }
+  void DeleteRandom(ThreadState* thread) { DoDelete(thread, false); }
 
-  void ReadWhileWriting(ThreadState *thread) {
+  void ReadWhileWriting(ThreadState* thread) {
     if (thread->tid > 0) {
       ReadRandom(thread);
     } else {
@@ -1370,9 +1364,9 @@ void ShortRangeQuery(ThreadState *thread) {
     }
   }
 
-  void Compact(ThreadState *thread) { db_->CompactRange(nullptr, nullptr); }
+  void Compact(ThreadState* thread) { db_->CompactRange(nullptr, nullptr); }
 
-  void PrintStats(const char *key) {
+  void PrintStats(const char* key) {
     std::string stats;
     if (!db_->GetProperty(key, &stats)) {
       stats = "(failed)";
@@ -1380,8 +1374,8 @@ void ShortRangeQuery(ThreadState *thread) {
     fprintf(stdout, "\n%s\n", stats.c_str());
   }
 
-  void MixedWorkload(ThreadState *thread) {
-    WorkloadMixture *mixture =
+  void MixedWorkload(ThreadState* thread) {
+    WorkloadMixture* mixture =
         WorkloadMixture::ParseFromWorkloadSpec(db_, FLAGS_mixed_wl_spec);
     assert(mixture);
     char msg[1000];
@@ -1413,8 +1407,8 @@ void ShortRangeQuery(ThreadState *thread) {
     thread->stats.AddMessage(msg);
   }
 
-  void MixedWorkloadFillRandom(ThreadState *thread) {
-    WorkloadMixture *mixture =
+  void MixedWorkloadFillRandom(ThreadState* thread) {
+    WorkloadMixture* mixture =
         WorkloadMixture::ParseFromWorkloadSpec(db_, FLAGS_mixed_wl_spec);
     assert(mixture);
     size_t table_total_size = mixture->Size();
@@ -1437,14 +1431,14 @@ void ShortRangeQuery(ThreadState *thread) {
     thread->stats.AddMessage(msg);
   }
 
-  static void WriteToFile(void *arg, const char *buf, int n) {
-    reinterpret_cast<WritableFile *>(arg)->Append(Slice(buf, n));
+  static void WriteToFile(void* arg, const char* buf, int n) {
+    reinterpret_cast<WritableFile*>(arg)->Append(Slice(buf, n));
   }
 
   void HeapProfile() {
     char fname[100];
     snprintf(fname, sizeof(fname), "%s/heap-%04d", FLAGS_db, ++heap_counter_);
-    WritableFile *file;
+    WritableFile* file;
     Status s = g_env->NewWritableFile(fname, &file);
     if (!s.ok()) {
       fprintf(stderr, "%s\n", s.ToString().c_str());
@@ -1459,9 +1453,9 @@ void ShortRangeQuery(ThreadState *thread) {
   }
 };
 
-} // namespace leveldb
+}  // namespace leveldb
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   FLAGS_write_buffer_size = leveldb::Options().write_buffer_size;
   FLAGS_max_file_size = leveldb::Options().max_file_size;
   FLAGS_block_size = leveldb::Options().block_size;
@@ -1542,8 +1536,7 @@ int main(int argc, char **argv) {
     FLAGS_db = default_db_path.c_str();
   }
 
-  if (FLAGS_table_size == -1)
-    FLAGS_table_size = FLAGS_num;
+  if (FLAGS_table_size == -1) FLAGS_table_size = FLAGS_num;
   leveldb::Benchmark benchmark;
   benchmark.Run();
   return 0;

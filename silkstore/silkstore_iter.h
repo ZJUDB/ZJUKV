@@ -6,8 +6,8 @@
 #define SILKSTORE_ITER_H
 
 #include "db/dbformat.h"
-#include "leveldb/db.h"
 #include <stdint.h>
+#include "leveldb/db.h"
 
 namespace leveldb {
 namespace silkstore {
@@ -17,7 +17,7 @@ namespace silkstore {
 // representation into a single entry while accounting for sequence
 // numbers, deletion markers, overwrites, etc.
 class DBIter : public Iterator {
-public:
+ public:
   // Which direction is the iterator currently moving?
   // (1) When moving forward, the internal iterator is positioned at
   //     the exact entry that yields this->key(), this->value()
@@ -25,8 +25,11 @@ public:
   //     just before all entries whose user key == this->key().
   enum Direction { kForward, kReverse };
 
-  DBIter(const Comparator *cmp, Iterator *iter, SequenceNumber s)
-      : user_comparator_(cmp), iter_(iter), sequence_(s), direction_(kForward),
+  DBIter(const Comparator* cmp, Iterator* iter, SequenceNumber s)
+      : user_comparator_(cmp),
+        iter_(iter),
+        sequence_(s),
+        direction_(kForward),
         valid_(false) {}
 
   virtual ~DBIter() { delete iter_; }
@@ -39,7 +42,7 @@ public:
   }
 
   Slice internal_key() const {
-    assert(direction_ == kForward); // only works for forward iteration
+    assert(direction_ == kForward);  // only works for forward iteration
     return (direction_ == kForward) ? iter_->key() : saved_key_;
   }
 
@@ -59,7 +62,7 @@ public:
   virtual void Next() {
     assert(valid_);
 
-    if (direction_ == kReverse) { // Switch directions?
+    if (direction_ == kReverse) {  // Switch directions?
       direction_ = kForward;
       // iter_ is pointing just before the entries for this->key(),
       // so advance into the range of entries for this->key() and then
@@ -86,10 +89,10 @@ public:
   virtual void Prev() {
     assert(valid_);
 
-    if (direction_ == kForward) { // Switch directions?
+    if (direction_ == kForward) {  // Switch directions?
       // iter_ is pointing at the current entry.  Scan backwards until
       // the key changes so we can use the normal reverse scanning code.
-      assert(iter_->Valid()); // Otherwise valid_ would have been false
+      assert(iter_->Valid());  // Otherwise valid_ would have been false
       SaveKey(ExtractUserKey(iter_->key()), &saved_key_);
       while (true) {
         iter_->Prev();
@@ -110,7 +113,7 @@ public:
     FindPrevUserEntry();
   }
 
-  virtual void Seek(const Slice &target) {
+  virtual void Seek(const Slice& target) {
     direction_ = kForward;
     ClearSavedValue();
     saved_key_.clear();
@@ -142,8 +145,8 @@ public:
     FindPrevUserEntry();
   }
 
-private:
-  void FindNextUserEntry(bool skipping, std::string *skip) {
+ private:
+  void FindNextUserEntry(bool skipping, std::string* skip) {
     // Loop until we hit an acceptable entry to yield
     assert(iter_->Valid());
     assert(direction_ == kForward);
@@ -151,22 +154,22 @@ private:
       ParsedInternalKey ikey;
       if (ParseKey(&ikey) && ikey.sequence <= sequence_) {
         switch (ikey.type) {
-        case kTypeDeletion:
-          // Arrange to skip all upcoming entries for this key since
-          // they are hidden by this deletion.
-          SaveKey(ikey.user_key, skip);
-          skipping = true;
-          break;
-        case kTypeValue:
-          if (skipping &&
-              user_comparator_->Compare(ikey.user_key, *skip) <= 0) {
-            // Entry hidden
-          } else {
-            valid_ = true;
-            saved_key_.clear();
-            return;
-          }
-          break;
+          case kTypeDeletion:
+            // Arrange to skip all upcoming entries for this key since
+            // they are hidden by this deletion.
+            SaveKey(ikey.user_key, skip);
+            skipping = true;
+            break;
+          case kTypeValue:
+            if (skipping &&
+                user_comparator_->Compare(ikey.user_key, *skip) <= 0) {
+              // Entry hidden
+            } else {
+              valid_ = true;
+              saved_key_.clear();
+              return;
+            }
+            break;
         }
       }
       iter_->Next();
@@ -217,7 +220,7 @@ private:
     }
   }
 
-  bool ParseKey(ParsedInternalKey *ikey) {
+  bool ParseKey(ParsedInternalKey* ikey) {
     Slice k = iter_->key();
 
     if (!ParseInternalKey(k, ikey)) {
@@ -228,7 +231,7 @@ private:
     }
   }
 
-  inline void SaveKey(const Slice &k, std::string *dst) {
+  inline void SaveKey(const Slice& k, std::string* dst) {
     dst->assign(k.data(), k.size());
   }
 
@@ -241,29 +244,29 @@ private:
     }
   }
 
-  const Comparator *const user_comparator_;
-  Iterator *const iter_;
+  const Comparator* const user_comparator_;
+  Iterator* const iter_;
   SequenceNumber const sequence_;
 
   Status status_;
-  std::string saved_key_;   // == current key when direction_==kReverse
-  std::string saved_value_; // == current raw value when direction_==kReverse
+  std::string saved_key_;    // == current key when direction_==kReverse
+  std::string saved_value_;  // == current raw value when direction_==kReverse
   Direction direction_;
   bool valid_;
 
   // No copying allowed
-  DBIter(const DBIter &);
+  DBIter(const DBIter&);
 
-  void operator=(const DBIter &);
+  void operator=(const DBIter&);
 };
 
 // Return a new iterator that converts internal keys (yielded by
 // "*internal_iter") that were live at the specified "sequence" number
 // into appropriate user keys.
-Iterator *NewDBIterator(const Comparator *user_key_comparator,
-                        Iterator *internal_iter, SequenceNumber sequence);
+Iterator* NewDBIterator(const Comparator* user_key_comparator,
+                        Iterator* internal_iter, SequenceNumber sequence);
 
-} // namespace silkstore
-} // namespace leveldb
+}  // namespace silkstore
+}  // namespace leveldb
 
-#endif // SILKSTORE_ITER_H
+#endif  // SILKSTORE_ITER_H

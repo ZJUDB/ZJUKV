@@ -24,20 +24,20 @@ namespace silkstore {
 struct MiniRunBuilder::Rep {
   Options options;
   Options index_block_options;
-  WritableFile *file;
-  silkstore::SegmentBuilder *seg_builder;
-  uint64_t start_offset; // records the start of a minirun and reduces the size
-                         // of a BlockHandle after varint encoding.
+  WritableFile* file;
+  silkstore::SegmentBuilder* seg_builder;
+  uint64_t start_offset;  // records the start of a minirun and reduces the size
+                          // of a BlockHandle after varint encoding.
   uint64_t offset;
   uint32_t run_datasize;
-  BlockHandle last_block_handle; // records the size of the last block, used for
-                                 // garbage collection
+  BlockHandle last_block_handle;  // records the size of the last block, used
+                                  // for garbage collection
   Status status;
   BlockBuilder data_block;
   BlockBuilder index_block;
   std::string last_key;
   int64_t num_entries;
-  FilterBlockBuilder *filter_block_builder;
+  FilterBlockBuilder* filter_block_builder;
 
   // We do not emit the index entry for a block until we have seen the
   // first key for the next data block.  This allows us to use shorter
@@ -49,17 +49,23 @@ struct MiniRunBuilder::Rep {
   //
   // Invariant: r->pending_index_entry is true only if data_block is empty.
   bool pending_index_entry;
-  BlockHandle pending_handle; // Handle to add to index block
+  BlockHandle pending_handle;  // Handle to add to index block
 
   std::string compressed_output;
 
   Slice finished_index_block;
   Slice finished_filter_block;
 
-  Rep(const Options &opt, WritableFile *f, uint64_t offset = 0)
-      : options(opt), index_block_options(opt), file(f), start_offset(offset),
-        offset(offset), run_datasize(0), data_block(&options),
-        index_block(&index_block_options), num_entries(0),
+  Rep(const Options& opt, WritableFile* f, uint64_t offset = 0)
+      : options(opt),
+        index_block_options(opt),
+        file(f),
+        start_offset(offset),
+        offset(offset),
+        run_datasize(0),
+        data_block(&options),
+        index_block(&index_block_options),
+        num_entries(0),
         filter_block_builder((opt.filter_policy == nullptr)
                                  ? nullptr
                                  : new FilterBlockBuilder(opt.filter_policy)),
@@ -68,7 +74,7 @@ struct MiniRunBuilder::Rep {
   }
 };
 
-MiniRunBuilder::MiniRunBuilder(const Options &options, WritableFile *file,
+MiniRunBuilder::MiniRunBuilder(const Options& options, WritableFile* file,
                                uint64_t file_offset)
     : rep_(new Rep(options, file, file_offset)) {
   if (rep_->filter_block_builder != nullptr) {
@@ -81,10 +87,9 @@ MiniRunBuilder::~MiniRunBuilder() {
   delete rep_;
 }
 
-void MiniRunBuilder::Add(const Slice &key, const Slice &value) {
-  Rep *r = rep_;
-  if (!ok())
-    return;
+void MiniRunBuilder::Add(const Slice& key, const Slice& value) {
+  Rep* r = rep_;
+  if (!ok()) return;
   if (r->num_entries > 0) {
     assert(r->options.comparator->Compare(key, Slice(r->last_key)) > 0);
   }
@@ -113,11 +118,9 @@ void MiniRunBuilder::Add(const Slice &key, const Slice &value) {
 }
 
 void MiniRunBuilder::Flush() {
-  Rep *r = rep_;
-  if (!ok())
-    return;
-  if (r->data_block.empty())
-    return;
+  Rep* r = rep_;
+  if (!ok()) return;
+  if (r->data_block.empty()) return;
   assert(!r->pending_index_entry);
   WriteBlock(&r->data_block, &r->pending_handle);
   // Store the current size of the run
@@ -136,45 +139,45 @@ void MiniRunBuilder::Flush() {
   }
 }
 
-void MiniRunBuilder::WriteBlock(BlockBuilder *block, BlockHandle *handle) {
+void MiniRunBuilder::WriteBlock(BlockBuilder* block, BlockHandle* handle) {
   // File format contains a sequence of blocks where each block has:
   //    block_data: uint8[n]
   //    type: uint8
   //    crc: uint32
   assert(ok());
-  Rep *r = rep_;
+  Rep* r = rep_;
   Slice raw = block->Finish();
 
   Slice block_contents;
   CompressionType type = r->options.compression;
   // TODO(postrelease): Support more compression options: zlib?
   switch (type) {
-  case kNoCompression:
-    block_contents = raw;
-    break;
-
-  case kSnappyCompression: {
-    std::string *compressed = &r->compressed_output;
-    if (port::Snappy_Compress(raw.data(), raw.size(), compressed) &&
-        compressed->size() < raw.size() - (raw.size() / 8u)) {
-      block_contents = *compressed;
-    } else {
-      // Snappy not supported, or compressed less than 12.5%, so just
-      // store uncompressed form
+    case kNoCompression:
       block_contents = raw;
-      type = kNoCompression;
+      break;
+
+    case kSnappyCompression: {
+      std::string* compressed = &r->compressed_output;
+      if (port::Snappy_Compress(raw.data(), raw.size(), compressed) &&
+          compressed->size() < raw.size() - (raw.size() / 8u)) {
+        block_contents = *compressed;
+      } else {
+        // Snappy not supported, or compressed less than 12.5%, so just
+        // store uncompressed form
+        block_contents = raw;
+        type = kNoCompression;
+      }
+      break;
     }
-    break;
-  }
   }
   WriteRawBlock(block_contents, type, handle);
   r->compressed_output.clear();
   block->Reset();
 }
 
-void MiniRunBuilder::WriteRawBlock(const Slice &block_contents,
-                                   CompressionType type, BlockHandle *handle) {
-  Rep *r = rep_;
+void MiniRunBuilder::WriteRawBlock(const Slice& block_contents,
+                                   CompressionType type, BlockHandle* handle) {
+  Rep* r = rep_;
   handle->set_offset(r->offset);
   handle->set_size(block_contents.size());
   r->status = r->file->Append(block_contents);
@@ -182,7 +185,7 @@ void MiniRunBuilder::WriteRawBlock(const Slice &block_contents,
     char trailer[kBlockTrailerSize];
     trailer[0] = type;
     uint32_t crc = crc32c::Value(block_contents.data(), block_contents.size());
-    crc = crc32c::Extend(crc, trailer, 1); // Extend crc to cover block type
+    crc = crc32c::Extend(crc, trailer, 1);  // Extend crc to cover block type
     EncodeFixed32(trailer + 1, crc32c::Mask(crc));
     r->status = r->file->Append(Slice(trailer, kBlockTrailerSize));
     if (r->status.ok()) {
@@ -194,7 +197,7 @@ void MiniRunBuilder::WriteRawBlock(const Slice &block_contents,
 Status MiniRunBuilder::status() const { return rep_->status; }
 
 Status MiniRunBuilder::Finish() {
-  Rep *r = rep_;
+  Rep* r = rep_;
   Flush();
   // BlockHandle filter_block_handle, metaindex_block_handle,
   // index_block_handle;
@@ -258,19 +261,19 @@ Status MiniRunBuilder::Finish() {
 // Return the index block for this minirun.
 // REQUIRES: Finish() has been called
 Slice MiniRunBuilder::IndexBlock() const {
-  Rep *r = rep_;
+  Rep* r = rep_;
   return r->finished_index_block;
 }
 
 // Return the filter block for this minirun.
 // REQUIRES: Finish() has been called
 Slice MiniRunBuilder::FilterBlock() const {
-  Rep *r = rep_;
+  Rep* r = rep_;
   return r->finished_filter_block;
 }
 
 void MiniRunBuilder::Reset(uint64_t file_offset) {
-  Rep *r = rep_;
+  Rep* r = rep_;
   r->start_offset = file_offset;
   r->offset = file_offset;
   r->num_entries = 0;
@@ -301,5 +304,5 @@ BlockHandle MiniRunBuilder::GetLastBlockHandle() const {
   return rep_->last_block_handle;
 }
 
-} // namespace silkstore
-} // namespace leveldb
+}  // namespace silkstore
+}  // namespace leveldb

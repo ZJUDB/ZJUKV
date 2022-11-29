@@ -10,17 +10,17 @@
 namespace leveldb {
 
 class Histogram {
-public:
+ public:
   Histogram() {}
   ~Histogram() {}
 
   void Clear();
   void Add(double value);
-  void Merge(const Histogram &other);
+  void Merge(const Histogram& other);
 
   std::string ToString() const;
 
-private:
+ private:
   double min_;
   double max_;
   double num_;
@@ -37,6 +37,6 @@ private:
   double StandardDeviation() const;
 };
 
-} // namespace leveldb
+}  // namespace leveldb
 
-#endif // STORAGE_LEVELDB_UTIL_HISTOGRAM_H_
+#endif  // STORAGE_LEVELDB_UTIL_HISTOGRAM_H_
