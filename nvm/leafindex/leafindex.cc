@@ -162,6 +162,7 @@ void LeafIndex::Add(SequenceNumber s, ValueType type, const Slice &key,
   const size_t encoded_len = VarintLength(internal_key_size) +
                              internal_key_size + VarintLength(val_size) +
                              val_size;
+  //buf = arena_.Allocate(encoded_len);
   char *p = EncodeVarint32(buf, internal_key_size);
   memcpy(p, key.data(), key_size);
   p += key_size;

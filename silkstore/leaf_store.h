@@ -147,11 +147,20 @@ public:
     m[key] = {-1, 0, 0, (long long)Env::Default()->NowMicros() / 1000000, 0, 0};
   }
 
+  void NewLeaf(const std::string &key, int num_runs) {
+    MutexLock g(&lock);
+    m[key] = {-1, 0, 0, (long long)Env::Default()->NowMicros() / 1000000, 0, num_runs};
+  }
+
   void IncrementLeafReads(const std::string &leaf_key) {
     MutexLock g(&lock);
     auto it = m.find(leaf_key);
-    if (it == m.end())
-      return;
+    if (it == m.end()){
+      /* g.Release();
+      NewLeaf(leaf_key);
+      IncrementLeafReads(leaf_key); */
+      return;      
+    }
     LeafStat &stat = it->second;
     ++stat.reads_in_last_interval;
   }
@@ -244,6 +253,7 @@ public:
   void ForEachLeaf(
       std::function<void(const std::string &, const LeafStat &)> processor) {
     MutexLock g(&lock);
+    // printf( "Leaf nums : %ld \n",  m.size() );
     for (auto &kv : m) {
       processor(kv.first, kv.second);
     }

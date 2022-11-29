@@ -44,10 +44,11 @@
 //      sstables    -- Print sstable info
 //      heapprofile -- Dump a heap profile (if supported by this port)
 static const char *FLAGS_benchmarks =
-    //"fillrandom,"
-    "fillseq,"
-    "shortrange,"
-    "readrandomsmall,"
+    "fillrandom,"
+    //"fillseq,"
+    //"overwrite,"
+   // "readrandomsmall,"
+    "shortrange,"    
     "readseq,"
     
     //"readrandomsmall," // Extra run to allow previous compactions to quiesce
@@ -140,7 +141,7 @@ static int FLAGS_bloom_bits = 10;
 // If true, do not destroy the existing database.  If you set this
 // flag and also specify a benchmark that wants a fresh database, that
 // benchmark will fail.
-static bool FLAGS_use_existing_db = true;
+static bool FLAGS_use_existing_db = false;
 
 // If true, reuse existing log/MANIFEST files when re-opening a database.
 static bool FLAGS_reuse_logs = false;
@@ -157,7 +158,7 @@ static const char *FLAGS_mixed_wl_spec = nullptr;
 
 static int FLAGS_num_ops_in_mixed_wl = 0;
 
-static bool FLAGS_enable_leaf_read_opt = false;
+static bool FLAGS_enable_leaf_read_opt = true;
 
 static bool FLAGS_enable_memtable_bloom = false;
 
@@ -794,7 +795,7 @@ public:
         method = &Benchmark::WriteRandom;
       } else if (name == Slice("readseq")) {
         method = &Benchmark::ReadSequential;
-      }else if (name == Slice("shortrange")) {
+      } else if (name == Slice("shortrange")) {
         method = &Benchmark::ShortRangeQuery;
       } else if (name == Slice("readreverse")) {
         method = &Benchmark::ReadReverse;
@@ -807,7 +808,7 @@ public:
       } else if (name == Slice("readhot")) {
         method = &Benchmark::ReadHot;
       } else if (name == Slice("readrandomsmall")) {
-        reads_ /= 3000;
+        reads_ /= 1000;
         method = &Benchmark::ReadRandom;
       } else if (name == Slice("deleteseq")) {
         method = &Benchmark::DeleteSeq;
@@ -1185,8 +1186,19 @@ void ShortRangeQuery(ThreadState *thread) {
     printf("Total reads_ %d  avil kv num's : %d \n",reads_ , kv_nums);
 
     delete iter;
-    char msg[100];
-    snprintf(msg, sizeof(msg), "%ld bytes %d reads", bytes, kv_nums);
+    char msg[1000];
+    
+    std::string runs_searched;
+    db_->GetProperty("silkstore.runs_searched", &runs_searched);
+    std::string leaf_avg_num_runs;
+    db_->GetProperty("silkstore.leaf_avg_num_runs", &leaf_avg_num_runs);
+    std::string num_leaves;
+    db_->GetProperty("silkstore.num_leaves", &num_leaves);
+    snprintf(msg, sizeof(msg),
+             "(%d of %d found), runs_searched %s leaf_avg_num_runs %s "
+             "num_leaves %s ",
+             kv_nums, reads_, runs_searched.c_str(), leaf_avg_num_runs.c_str(),
+             num_leaves.c_str());
     thread->stats.AddMessage(msg);
     thread->stats.AddBytes(bytes);
   }

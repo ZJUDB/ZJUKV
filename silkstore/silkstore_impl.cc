@@ -145,6 +145,24 @@ SilkStore::~SilkStore() {
 Status SilkStore::OpenIndex(const Options &index_options) {
   assert(leaf_index_ == nullptr);
   Status s = NvmLeafIndex::OpenNvmLeafIndex(index_options, dbname_, &leaf_index_);
+
+  auto it = leaf_index_->NewIterator(ReadOptions{});
+  DeferCode c([it]() { delete it; });
+  int cnt = 0;
+  std::map<int, int> counts;    
+  it->SeekToFirst();
+  while (it->Valid()) {
+    LeafIndexEntry index_entry(it->value());    
+    int nums = index_entry.GetNumMiniRuns();
+    stat_store_.NewLeaf(it->key().ToString(), nums);
+    ++cnt;
+    counts[nums]++;
+    it->Next();
+  }
+  std::cout << "NvmLeafIndex NumMiniRuns\n";
+  for (auto it : counts) {
+    std::cout << "NumMiniRuns: " << it.first << " count " << it.second << "\n";
+  }
   return s;
 }
 
@@ -434,6 +452,7 @@ Iterator *SilkStore::NewIterator(const ReadOptions &ropts) {
       internal_comparator_.user_comparator(), internal_iter, seqno);
 }
 
+
 // REQUIRES: mutex_ is held
 // REQUIRES: this thread is currently at the front of the writer queue
 Status SilkStore::MakeRoomForWrite(bool force) {
@@ -473,6 +492,14 @@ Status SilkStore::MakeRoomForWrite(bool force) {
       Log(options_.info_log, "new memtable capacity %lu\n",
           new_memtable_capacity);
       memtable_capacity_ = new_memtable_capacity;
+
+      // std::cout << "new_memtable_capacity: " << memtable_capacity_ /(1024*1024)<< "MB\n";
+
+      // Fix memtable's capacity_
+     /*  size_t new_memtable_capacity = 1024ul*1024ul*1024ul;
+      memtable_capacity_ = new_memtable_capacity;
+      size_t old_memtable_capacity = memtable_capacity_; */
+
       allowed_num_leaves = std::ceil(new_memtable_capacity /
                                      (options_.storage_block_size + 0.0));
       DynamicFilter *dynamic_filter = nullptr;
@@ -1251,7 +1278,7 @@ Status SilkStore::OptimizeLeaf() {
   Log(options_.info_log,
       "Scanning for leaves that are suitable for optimization.");
 
-  constexpr int kOptimizationK = 1000;
+  constexpr int kOptimizationK = 100;
   struct HeapItem {
     double read_hotness;
     std::shared_ptr<std::string> leaf_max_key;
@@ -1273,9 +1300,8 @@ Status SilkStore::OptimizeLeaf() {
       [this, &candidate_heap](const std::string &leaf_max_key,
                               const LeafStatStore::LeafStat &stat) {
         double read_hotness = stat.read_hotness;
-        if (stat.num_runs >= options_.leaf_max_num_miniruns / 4 &&
+        if (stat.num_runs >= 2 /* options_.leaf_max_num_miniruns / 4 */ &&
             read_hotness > 0) {
-          //   std::cout << "read_hotness: " << read_hotness << "\n";
           if (candidate_heap.size() < kOptimizationK) {
             candidate_heap.push(HeapItem{
                 read_hotness, std::make_shared<std::string>(leaf_max_key)});
@@ -1336,7 +1362,7 @@ Status SilkStore::OptimizeLeaf() {
     if (!s.ok())
       continue;
     LeafIndexEntry index_entry(leaf_index_entry_payload);
-    // fprintf(stderr, "optimization candidate leaf key %s, Rh %lf, compacting
+    // fprintf(stderr, "optimization candidate leaf key %s, Rh %lf, compacting \
     // miniruns[%d, %d]\n", item.leaf_max_key->c_str(), item.read_hotness, 0,
     // index_entry.GetNumMiniRuns() - 1);
     assert(seg_builder->RunStarted() == false);
@@ -1358,7 +1384,7 @@ Status SilkStore::OptimizeLeaf() {
   if (compacted_runs) {
     Log(options_.info_log, "Leaf Optimization compacted %d runs\n",
         compacted_runs);
-    fprintf(stderr, "Leaf Optimization compacted %d runs\n", compacted_runs);
+    // fprintf(stderr, "Leaf Optimization compacted %d runs\n", compacted_runs);
   }
   if (seg_builder.get()) {
     return seg_builder->Finish();
@@ -2061,7 +2087,7 @@ Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
 
     int minirun_key_cnt = 0;
     // Build up a minirun of key value payloads
-    while (mit->Valid()) {
+    while (mit->Valid()/*  && minirun_key_cnt < 1024*10 */) {
       Slice imm_internal_key = mit->key();
       ParsedInternalKey parsed_internal_key;
       if (!ParseInternalKey(imm_internal_key, &parsed_internal_key)) {
