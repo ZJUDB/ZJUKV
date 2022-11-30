@@ -15,8 +15,8 @@ static const int kReadOnlyFileLimit = 4;
 static const int kMMapLimit = 4;
 
 class EnvPosixTest {
-public:
-  Env *env_;
+ public:
+  Env* env_;
   EnvPosixTest() : env_(Env::Default()) {}
 
   static void SetFileLimits(int read_only_file_limit, int mmap_limit) {
@@ -31,7 +31,7 @@ TEST(EnvPosixTest, TestOpenOnRead) {
   ASSERT_OK(env_->GetTestDirectory(&test_dir));
   std::string test_file = test_dir + "/open_on_read.txt";
 
-  FILE *f = fopen(test_file.c_str(), "w");
+  FILE* f = fopen(test_file.c_str(), "w");
   ASSERT_TRUE(f != nullptr);
   const char kFileData[] = "abcdefghijklmnopqrstuvwxyz";
   fputs(kFileData, f);
@@ -40,7 +40,7 @@ TEST(EnvPosixTest, TestOpenOnRead) {
   // Open test file some number above the sum of the two limits to force
   // open-on-read behavior of POSIX Env leveldb::RandomAccessFile.
   const int kNumFiles = kReadOnlyFileLimit + kMMapLimit + 5;
-  leveldb::RandomAccessFile *files[kNumFiles] = {0};
+  leveldb::RandomAccessFile* files[kNumFiles] = {0};
   for (int i = 0; i < kNumFiles; i++) {
     ASSERT_OK(env_->NewRandomAccessFile(test_file, &files[i]));
   }
@@ -56,9 +56,9 @@ TEST(EnvPosixTest, TestOpenOnRead) {
   ASSERT_OK(env_->DeleteFile(test_file));
 }
 
-} // namespace leveldb
+}  // namespace leveldb
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   // All tests currently run with the same read-only file limits.
   leveldb::EnvPosixTest::SetFileLimits(leveldb::kReadOnlyFileLimit,
                                        leveldb::kMMapLimit);

@@ -5,11 +5,11 @@
 #ifndef SILKSTORE_SEGMENT_H
 #define SILKSTORE_SEGMENT_H
 
-#include "leveldb/slice.h"
-#include "table/block.h"
 #include <functional>
 #include <memory>
 #include <stdint.h>
+#include "leveldb/slice.h"
+#include "table/block.h"
 
 #include "silkstore/minirun.h"
 
@@ -21,18 +21,18 @@ class SegmentManager;
 static std::string MakeSegmentFileName(uint32_t segment_id);
 
 class SegmentBuilder {
-public:
+ public:
   // Create a builder that will store the contents of the table it is
   // building in *file.  Does not close the file.  It is up to the
   // caller to close the file after calling Finish().
-  SegmentBuilder(const Options &options,
-                 const std::string &src_segment_filepath,
-                 const std::string &target_segment_filepath, WritableFile *file,
-                 uint32_t seg_id, SegmentManager *segment_mgr);
+  SegmentBuilder(const Options& options,
+                 const std::string& src_segment_filepath,
+                 const std::string& target_segment_filepath, WritableFile* file,
+                 uint32_t seg_id, SegmentManager* segment_mgr);
 
-  SegmentBuilder(const SegmentBuilder &) = delete;
+  SegmentBuilder(const SegmentBuilder&) = delete;
 
-  void operator=(const SegmentBuilder &) = delete;
+  void operator=(const SegmentBuilder&) = delete;
 
   // REQUIRES: Either Finish() or Abandon() has been called.
   ~SegmentBuilder();
@@ -42,7 +42,7 @@ public:
   // Add key,value to the table being constructed.
   // REQUIRES: key is after any previously added key according to comparator.
   // REQUIRES: Finish(), Abandon() have not been called
-  void Add(const Slice &key, const Slice &value);
+  void Add(const Slice& key, const Slice& value);
 
   // Return non-ok iff some error has been detected.
   Status status() const;
@@ -53,7 +53,7 @@ public:
   // Finish building a minirun.
   // Store the pointer to the current minirun in run_handle.
   // REQUIRES: Finish(), Abandon() have not been called.
-  Status FinishMiniRun(uint32_t *run_no);
+  Status FinishMiniRun(uint32_t* run_no);
 
   // Return the index block for the previously finished run.
   // REQUIRES: FinishMiniRun() has been called and StartMiniRun() has not.
@@ -79,7 +79,7 @@ public:
 
   uint32_t GetFinishedRunDataSize();
 
-private:
+ private:
   bool ok() const { return status().ok(); }
 
   // Advanced operation: flush any buffered key/value pairs to file.
@@ -89,7 +89,7 @@ private:
   void flush();
 
   struct Rep;
-  Rep *rep_;
+  Rep* rep_;
 };
 
 /*
@@ -102,14 +102,14 @@ private:
  *     n
  */
 class Segment {
-public:
-  static Status Open(const Options &options, uint32_t segment_id,
-                     RandomAccessFile *file, uint64_t file_size,
-                     Segment **segment);
+ public:
+  static Status Open(const Options& options, uint32_t segment_id,
+                     RandomAccessFile* file, uint64_t file_size,
+                     Segment** segment);
 
   ~Segment();
 
-  Segment(const Segment &) = delete;
+  Segment(const Segment&) = delete;
 
   void Ref();
 
@@ -117,15 +117,15 @@ public:
 
   int NumRef();
 
-  void operator=(const Segment &) = delete;
+  void operator=(const Segment&) = delete;
 
-  RandomAccessFile *SetNewSegmentFile(RandomAccessFile *file);
+  RandomAccessFile* SetNewSegmentFile(RandomAccessFile* file);
 
-  Status OpenMiniRun(int run_no, Block &index_block, MiniRun **run);
+  Status OpenMiniRun(int run_no, Block& index_block, MiniRun** run);
 
   // Mark the minirun indicated by the segment.run_handle[run_no] as invalid.
   // Later GCs can simply skip this run without querying index for validness.
-  Status InvalidateMiniRun(const int &run_no);
+  Status InvalidateMiniRun(const int& run_no);
 
   // Iterate over all run numbers using a user-defined handler.
   // Arguments include a run number, handle to the run, size of the run, and a
@@ -140,35 +140,35 @@ public:
 
   size_t SegmentSize() const;
 
-private:
+ private:
   struct Rep;
-  Rep *rep_;
+  Rep* rep_;
 
-  explicit Segment(Rep *rep) { rep_ = rep; }
+  explicit Segment(Rep* rep) { rep_ = rep; }
 };
 
 class SegmentManager {
-public:
-  SegmentManager(const SegmentManager &) = delete;
+ public:
+  SegmentManager(const SegmentManager&) = delete;
 
-  SegmentManager(const SegmentManager &&) = delete;
+  SegmentManager(const SegmentManager&&) = delete;
 
-  SegmentManager &operator=(const SegmentManager &) = delete;
+  SegmentManager& operator=(const SegmentManager&) = delete;
 
-  SegmentManager &operator=(const SegmentManager &&) = delete;
+  SegmentManager& operator=(const SegmentManager&&) = delete;
 
-  static Status OpenManager(const Options &options, const std::string &dbname,
-                            SegmentManager **manager_ptr,
+  static Status OpenManager(const Options& options, const std::string& dbname,
+                            SegmentManager** manager_ptr,
                             std::function<void()> gc_func);
 
   // Get the top K most invalidated segments
-  std::vector<Segment *> GetMostInvalidatedSegments(int K);
+  std::vector<Segment*> GetMostInvalidatedSegments(int K);
 
   // Open or create a segment object
   // OpenSegment should always be paired with DropSegment
-  Status OpenSegment(uint32_t seg_id, Segment **seg_ptr);
+  Status OpenSegment(uint32_t seg_id, Segment** seg_ptr);
 
-  void DropSegment(Segment *seg_ptr);
+  void DropSegment(Segment* seg_ptr);
 
   // Remove segment objects and underlying segment files if associated.
   // This function should be called for phyiscal cleanup after GC.
@@ -176,8 +176,8 @@ public:
   // physically deleting resources.
   Status RemoveSegment(uint32_t seg_id);
 
-  Status NewSegmentBuilder(uint32_t *seg_id,
-                           std::unique_ptr<SegmentBuilder> &seg_builder_ptr,
+  Status NewSegmentBuilder(uint32_t* seg_id,
+                           std::unique_ptr<SegmentBuilder>& seg_builder_ptr,
                            bool gc_on_segment_shortage);
 
   size_t ApproximateSize();
@@ -186,16 +186,16 @@ public:
 
   Status RenameSegment(uint32_t seg_id, const std::string target_filepath);
 
-  void ForEachSegment(std::function<void(Segment *seg)> processor);
+  void ForEachSegment(std::function<void(Segment* seg)> processor);
 
-private:
+ private:
   struct Rep;
-  Rep *rep_;
+  Rep* rep_;
 
-  SegmentManager(Rep *r) : rep_(r) {}
+  SegmentManager(Rep* r) : rep_(r) {}
 };
 
-} // namespace silkstore
-} // namespace leveldb
+}  // namespace silkstore
+}  // namespace leveldb
 
-#endif // SILKSTORE_SEGMENT_H
+#endif  // SILKSTORE_SEGMENT_H

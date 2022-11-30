@@ -26,15 +26,15 @@
 
 // Other compilers
 
-#else // defined(_MSC_VER)
+#else  // defined(_MSC_VER)
 
 #define BIG_CONSTANT(x) (x##LLU)
 
-#endif // !defined(_MSC_VER)
+#endif  // !defined(_MSC_VER)
 
 //-----------------------------------------------------------------------------
 
-uint32_t MurmurHash2(const void *key, int len, uint32_t seed) {
+uint32_t MurmurHash2(const void* key, int len, uint32_t seed) {
   // 'm' and 'r' are mixing constants generated offline.
   // They're not really 'magic', they just happen to work well.
 
@@ -47,10 +47,10 @@ uint32_t MurmurHash2(const void *key, int len, uint32_t seed) {
 
   // Mix 4 bytes at a time into the hash
 
-  const unsigned char *data = (const unsigned char *)key;
+  const unsigned char* data = (const unsigned char*)key;
 
   while (len >= 4) {
-    uint32_t k = *(uint32_t *)data;
+    uint32_t k = *(uint32_t*)data;
 
     k *= m;
     k ^= k >> r;
@@ -66,13 +66,13 @@ uint32_t MurmurHash2(const void *key, int len, uint32_t seed) {
   // Handle the last few bytes of the input array
 
   switch (len) {
-  case 3:
-    h ^= data[2] << 16;
-  case 2:
-    h ^= data[1] << 8;
-  case 1:
-    h ^= data[0];
-    h *= m;
+    case 3:
+      h ^= data[2] << 16;
+    case 2:
+      h ^= data[1] << 8;
+    case 1:
+      h ^= data[0];
+      h *= m;
   };
 
   // Do a few final mixes of the hash to ensure the last few
@@ -93,14 +93,14 @@ uint32_t MurmurHash2(const void *key, int len, uint32_t seed) {
 
 // 64-bit hash for 64-bit platforms
 
-uint64_t MurmurHash64A(const void *key, int len, uint64_t seed) {
+uint64_t MurmurHash64A(const void* key, int len, uint64_t seed) {
   const uint64_t m = BIG_CONSTANT(0xc6a4a7935bd1e995);
   const int r = 47;
 
   uint64_t h = seed ^ (len * m);
 
-  const uint64_t *data = (const uint64_t *)key;
-  const uint64_t *end = data + (len / 8);
+  const uint64_t* data = (const uint64_t*)key;
+  const uint64_t* end = data + (len / 8);
 
   while (data != end) {
     uint64_t k = *data++;
@@ -113,24 +113,24 @@ uint64_t MurmurHash64A(const void *key, int len, uint64_t seed) {
     h *= m;
   }
 
-  const unsigned char *data2 = (const unsigned char *)data;
+  const unsigned char* data2 = (const unsigned char*)data;
 
   switch (len & 7) {
-  case 7:
-    h ^= uint64_t(data2[6]) << 48;
-  case 6:
-    h ^= uint64_t(data2[5]) << 40;
-  case 5:
-    h ^= uint64_t(data2[4]) << 32;
-  case 4:
-    h ^= uint64_t(data2[3]) << 24;
-  case 3:
-    h ^= uint64_t(data2[2]) << 16;
-  case 2:
-    h ^= uint64_t(data2[1]) << 8;
-  case 1:
-    h ^= uint64_t(data2[0]);
-    h *= m;
+    case 7:
+      h ^= uint64_t(data2[6]) << 48;
+    case 6:
+      h ^= uint64_t(data2[5]) << 40;
+    case 5:
+      h ^= uint64_t(data2[4]) << 32;
+    case 4:
+      h ^= uint64_t(data2[3]) << 24;
+    case 3:
+      h ^= uint64_t(data2[2]) << 16;
+    case 2:
+      h ^= uint64_t(data2[1]) << 8;
+    case 1:
+      h ^= uint64_t(data2[0]);
+      h *= m;
   };
 
   h ^= h >> r;
@@ -142,14 +142,14 @@ uint64_t MurmurHash64A(const void *key, int len, uint64_t seed) {
 
 // 64-bit hash for 32-bit platforms
 
-uint64_t MurmurHash64B(const void *key, int len, uint64_t seed) {
+uint64_t MurmurHash64B(const void* key, int len, uint64_t seed) {
   const uint32_t m = 0x5bd1e995;
   const int r = 24;
 
   uint32_t h1 = uint32_t(seed) ^ len;
   uint32_t h2 = uint32_t(seed >> 32);
 
-  const uint32_t *data = (const uint32_t *)key;
+  const uint32_t* data = (const uint32_t*)key;
 
   while (len >= 8) {
     uint32_t k1 = *data++;
@@ -180,13 +180,13 @@ uint64_t MurmurHash64B(const void *key, int len, uint64_t seed) {
   }
 
   switch (len) {
-  case 3:
-    h2 ^= ((unsigned char *)data)[2] << 16;
-  case 2:
-    h2 ^= ((unsigned char *)data)[1] << 8;
-  case 1:
-    h2 ^= ((unsigned char *)data)[0];
-    h2 *= m;
+    case 3:
+      h2 ^= ((unsigned char*)data)[2] << 16;
+    case 2:
+      h2 ^= ((unsigned char*)data)[1] << 8;
+    case 1:
+      h2 ^= ((unsigned char*)data)[0];
+      h2 *= m;
   };
 
   h1 ^= h2 >> 18;
@@ -216,26 +216,26 @@ uint64_t MurmurHash64B(const void *key, int len, uint64_t seed) {
 // collide with each other than expected, and also makes the function
 // more amenable to incremental implementations.
 
-#define mmix(h, k)                                                             \
-  {                                                                            \
-    k *= m;                                                                    \
-    k ^= k >> r;                                                               \
-    k *= m;                                                                    \
-    h *= m;                                                                    \
-    h ^= k;                                                                    \
+#define mmix(h, k) \
+  {                \
+    k *= m;        \
+    k ^= k >> r;   \
+    k *= m;        \
+    h *= m;        \
+    h ^= k;        \
   }
 
-uint32_t MurmurHash2A(const void *key, int len, uint32_t seed) {
+uint32_t MurmurHash2A(const void* key, int len, uint32_t seed) {
   const uint32_t m = 0x5bd1e995;
   const int r = 24;
   uint32_t l = len;
 
-  const unsigned char *data = (const unsigned char *)key;
+  const unsigned char* data = (const unsigned char*)key;
 
   uint32_t h = seed;
 
   while (len >= 4) {
-    uint32_t k = *(uint32_t *)data;
+    uint32_t k = *(uint32_t*)data;
 
     mmix(h, k);
 
@@ -246,12 +246,12 @@ uint32_t MurmurHash2A(const void *key, int len, uint32_t seed) {
   uint32_t t = 0;
 
   switch (len) {
-  case 3:
-    t ^= data[2] << 16;
-  case 2:
-    t ^= data[1] << 8;
-  case 1:
-    t ^= data[0];
+    case 3:
+      t ^= data[2] << 16;
+    case 2:
+      t ^= data[1] << 8;
+    case 1:
+      t ^= data[0];
   };
 
   mmix(h, t);
@@ -281,7 +281,7 @@ uint32_t MurmurHash2A(const void *key, int len, uint32_t seed) {
 // uint32_t hash = hasher.End()
 
 class CMurmurHash2A {
-public:
+ public:
   void Begin(uint32_t seed = 0) {
     m_hash = seed;
     m_tail = 0;
@@ -289,13 +289,13 @@ public:
     m_size = 0;
   }
 
-  void Add(const unsigned char *data, int len) {
+  void Add(const unsigned char* data, int len) {
     m_size += len;
 
     MixTail(data, len);
 
     while (len >= 4) {
-      uint32_t k = *(uint32_t *)data;
+      uint32_t k = *(uint32_t*)data;
 
       mmix(m_hash, k);
 
@@ -317,11 +317,11 @@ public:
     return m_hash;
   }
 
-private:
+ private:
   static const uint32_t m = 0x5bd1e995;
   static const int r = 24;
 
-  void MixTail(const unsigned char *&data, int &len) {
+  void MixTail(const unsigned char*& data, int& len) {
     while (len && ((len < 4) || m_count)) {
       m_tail |= (*data++) << (m_count * 8);
 
@@ -348,13 +348,13 @@ private:
 // Same as MurmurHash2, but endian- and alignment-neutral.
 // Half the speed though, alas.
 
-uint32_t MurmurHashNeutral2(const void *key, int len, uint32_t seed) {
+uint32_t MurmurHashNeutral2(const void* key, int len, uint32_t seed) {
   const uint32_t m = 0x5bd1e995;
   const int r = 24;
 
   uint32_t h = seed ^ len;
 
-  const unsigned char *data = (const unsigned char *)key;
+  const unsigned char* data = (const unsigned char*)key;
 
   while (len >= 4) {
     uint32_t k;
@@ -376,13 +376,13 @@ uint32_t MurmurHashNeutral2(const void *key, int len, uint32_t seed) {
   }
 
   switch (len) {
-  case 3:
-    h ^= data[2] << 16;
-  case 2:
-    h ^= data[1] << 8;
-  case 1:
-    h ^= data[0];
-    h *= m;
+    case 3:
+      h ^= data[2] << 16;
+    case 2:
+      h ^= data[1] << 8;
+    case 1:
+      h ^= data[0];
+      h *= m;
   };
 
   h ^= h >> 13;
@@ -400,20 +400,20 @@ uint32_t MurmurHashNeutral2(const void *key, int len, uint32_t seed) {
 
 // Performance will be lower than MurmurHash2
 
-#define MIX(h, k, m)                                                           \
-  {                                                                            \
-    k *= m;                                                                    \
-    k ^= k >> r;                                                               \
-    k *= m;                                                                    \
-    h *= m;                                                                    \
-    h ^= k;                                                                    \
+#define MIX(h, k, m) \
+  {                  \
+    k *= m;          \
+    k ^= k >> r;     \
+    k *= m;          \
+    h *= m;          \
+    h ^= k;          \
   }
 
-uint32_t MurmurHashAligned2(const void *key, int len, uint32_t seed) {
+uint32_t MurmurHashAligned2(const void* key, int len, uint32_t seed) {
   const uint32_t m = 0x5bd1e995;
   const int r = 24;
 
-  const unsigned char *data = (const unsigned char *)key;
+  const unsigned char* data = (const unsigned char*)key;
 
   uint32_t h = seed ^ len;
 
@@ -425,12 +425,12 @@ uint32_t MurmurHashAligned2(const void *key, int len, uint32_t seed) {
     uint32_t t = 0, d = 0;
 
     switch (align) {
-    case 1:
-      t |= data[2] << 16;
-    case 2:
-      t |= data[1] << 8;
-    case 3:
-      t |= data[0];
+      case 1:
+        t |= data[2] << 16;
+      case 2:
+        t |= data[1] << 8;
+      case 3:
+        t |= data[0];
     }
 
     t <<= (8 * align);
@@ -444,7 +444,7 @@ uint32_t MurmurHashAligned2(const void *key, int len, uint32_t seed) {
     // Mix
 
     while (len >= 4) {
-      d = *(uint32_t *)data;
+      d = *(uint32_t*)data;
       t = (t >> sr) | (d << sl);
 
       uint32_t k = t;
@@ -463,12 +463,12 @@ uint32_t MurmurHashAligned2(const void *key, int len, uint32_t seed) {
 
     if (len >= align) {
       switch (align) {
-      case 3:
-        d |= data[2] << 16;
-      case 2:
-        d |= data[1] << 8;
-      case 1:
-        d |= data[0];
+        case 3:
+          d |= data[2] << 16;
+        case 2:
+          d |= data[1] << 8;
+        case 1:
+          d |= data[0];
       }
 
       uint32_t k = (t >> sr) | (d << sl);
@@ -481,25 +481,25 @@ uint32_t MurmurHashAligned2(const void *key, int len, uint32_t seed) {
       // Handle tail bytes
 
       switch (len) {
-      case 3:
-        h ^= data[2] << 16;
-      case 2:
-        h ^= data[1] << 8;
-      case 1:
-        h ^= data[0];
-        h *= m;
+        case 3:
+          h ^= data[2] << 16;
+        case 2:
+          h ^= data[1] << 8;
+        case 1:
+          h ^= data[0];
+          h *= m;
       };
     } else {
       switch (len) {
-      case 3:
-        d |= data[2] << 16;
-      case 2:
-        d |= data[1] << 8;
-      case 1:
-        d |= data[0];
-      case 0:
-        h ^= (t >> sr) | (d << sl);
-        h *= m;
+        case 3:
+          d |= data[2] << 16;
+        case 2:
+          d |= data[1] << 8;
+        case 1:
+          d |= data[0];
+        case 0:
+          h ^= (t >> sr) | (d << sl);
+          h *= m;
       }
     }
 
@@ -510,7 +510,7 @@ uint32_t MurmurHashAligned2(const void *key, int len, uint32_t seed) {
     return h;
   } else {
     while (len >= 4) {
-      uint32_t k = *(uint32_t *)data;
+      uint32_t k = *(uint32_t*)data;
 
       MIX(h, k, m);
 
@@ -522,13 +522,13 @@ uint32_t MurmurHashAligned2(const void *key, int len, uint32_t seed) {
     // Handle tail bytes
 
     switch (len) {
-    case 3:
-      h ^= data[2] << 16;
-    case 2:
-      h ^= data[1] << 8;
-    case 1:
-      h ^= data[0];
-      h *= m;
+      case 3:
+        h ^= data[2] << 16;
+      case 2:
+        h ^= data[1] << 8;
+      case 1:
+        h ^= data[0];
+        h *= m;
     };
 
     h ^= h >> 13;

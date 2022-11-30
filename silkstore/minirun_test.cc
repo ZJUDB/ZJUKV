@@ -9,20 +9,20 @@
 #include "leveldb/table.h"
 #include "port/port.h"
 #include "port/thread_annotations.h"
-#include "silkstore/silkstore_impl.h"
-#include "silkstore/util.h"
 #include "util/hash.h"
 #include "util/logging.h"
 #include "util/mutexlock.h"
 #include "util/testharness.h"
 #include "util/testutil.h"
+#include "silkstore/silkstore_impl.h"
+#include "silkstore/util.h"
 
 #include <string>
 
 namespace leveldb {
 namespace silkstore {
 
-static std::string RandomString(Random *rnd, int len) {
+static std::string RandomString(Random* rnd, int len) {
   std::string r;
   test::RandomString(rnd, len, &r);
   return r;
@@ -34,7 +34,7 @@ class MinirunTest {};
 
 TEST(MinirunTest, BuilderTestSmall) {
   string fname = TempFileName("/tmp", 1239);
-  WritableFile *file = nullptr;
+  WritableFile* file = nullptr;
   Status s = Env::Default()->NewWritableFile(fname, &file);
   ASSERT_OK(s);
   Options options;
@@ -52,11 +52,11 @@ TEST(MinirunTest, BuilderTestSmall) {
   size_t run_size = builder.FileSize();
   Block index_block(BlockContents{builder.IndexBlock(), false, false});
 
-  RandomAccessFile *rndfile;
+  RandomAccessFile* rndfile;
   s = Env::Default()->NewRandomAccessFile(fname, &rndfile);
   ASSERT_OK(s);
   MiniRun run(&options, rndfile, 0, run_size, index_block);
-  Iterator *run_iter = run.NewIterator(ReadOptions());
+  Iterator* run_iter = run.NewIterator(ReadOptions());
   DeferCode code([&run_iter]() { delete run_iter; });
 
   run_iter->
@@ -180,7 +180,7 @@ TEST(MinirunTest, BuilderTestSmall) {
 TEST(MinirunTest, BuilderTestLarge) {
   static int kNum = 100000;
   string fname = TempFileName("/tmp", 1239);
-  WritableFile *file = nullptr;
+  WritableFile* file = nullptr;
   Status s = Env::Default()->NewWritableFile(fname, &file);
   ASSERT_OK(s);
   Options options;
@@ -206,11 +206,11 @@ TEST(MinirunTest, BuilderTestLarge) {
   size_t run_size = builder.FileSize();
   Block index_block(BlockContents{builder.IndexBlock(), false, false});
 
-  RandomAccessFile *rndfile;
+  RandomAccessFile* rndfile;
   s = Env::Default()->NewRandomAccessFile(fname, &rndfile);
   ASSERT_OK(s);
   MiniRun run(&options, rndfile, 0, run_size, index_block);
-  Iterator *run_iter = run.NewIterator(ReadOptions());
+  Iterator* run_iter = run.NewIterator(ReadOptions());
   DeferCode code([&run_iter]() { delete run_iter; });
 
   run_iter->
@@ -511,7 +511,7 @@ TEST(MinirunTest, LeafIndexEntryTest) {
       );
       int i = 0;
       new_entry.ForEachMiniRunIndexEntry(
-          [&i](const MiniRunIndexEntry &e, uint32_t run_no) -> bool {
+          [&i](const MiniRunIndexEntry& e, uint32_t run_no) -> bool {
             ASSERT_EQ(run_no, i);
             ASSERT_EQ(e.
 
@@ -551,7 +551,7 @@ TEST(MinirunTest, LeafIndexEntryTest) {
           LeafIndexEntry::TraversalOrder::forward);
       i = eNum - 1;
       new_entry.ForEachMiniRunIndexEntry(
-          [&i](const MiniRunIndexEntry &e, uint32_t run_no) -> bool {
+          [&i](const MiniRunIndexEntry& e, uint32_t run_no) -> bool {
             ASSERT_EQ(run_no, i);
             ASSERT_EQ(e.
 
@@ -746,7 +746,7 @@ TEST(MinirunTest, LeafIndexEntryTest) {
   }
 }
 
-} // namespace silkstore
-} // namespace leveldb
+}  // namespace silkstore
+}  // namespace leveldb
 
-int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
+int main(int argc, char** argv) { return leveldb::test::RunAllTests(); }

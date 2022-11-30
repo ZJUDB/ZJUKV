@@ -13,18 +13,24 @@
 
 namespace leveldb {
 
-static Slice GetLengthPrefixedSlice(const char *data) {
+static Slice GetLengthPrefixedSlice(const char* data) {
   uint32_t len;
-  const char *p = data;
+  const char* p = data;
   p = GetVarint32Ptr(p, p + 5, &len);  // +5: we assume "p" is not corrupted
   return Slice(p, len);
 }
 
-LeafIndex::LeafIndex(const InternalKeyComparator &cmp,
-                     DynamicFilter *dynamic_filter, silkstore::Nvmem *nvmem)
-    : comparator_(cmp), refs_(0), num_entries_(0), searches_(0),
-      dynamic_filter(dynamic_filter), nvmem(nvmem), counters_(0),
-      memory_usage_(0), dram_usage_(0) {}
+LeafIndex::LeafIndex(const InternalKeyComparator& cmp,
+                     DynamicFilter* dynamic_filter, silkstore::Nvmem* nvmem)
+    : comparator_(cmp),
+      refs_(0),
+      num_entries_(0),
+      searches_(0),
+      dynamic_filter(dynamic_filter),
+      nvmem(nvmem),
+      counters_(0),
+      memory_usage_(0),
+      dram_usage_(0) {}
 
 LeafIndex::~LeafIndex() {
   assert(refs_ == 0);
@@ -42,8 +48,8 @@ size_t LeafIndex::Searches() const { return searches_; }
 size_t LeafIndex::NumEntries() const { return num_entries_; }
 size_t LeafIndex::ApproximateMemoryUsage() { return memory_usage_; }
 
-int LeafIndex::KeyComparator::operator()(const char *aptr,
-                                         const char *bptr) const {
+int LeafIndex::KeyComparator::operator()(const char* aptr,
+                                         const char* bptr) const {
   // Internal keys are encoded as length-prefixed strings.
   Slice a = GetLengthPrefixedSlice(aptr);
   Slice b = GetLengthPrefixedSlice(bptr);
@@ -53,19 +59,19 @@ int LeafIndex::KeyComparator::operator()(const char *aptr,
 // Encode a suitable internal key target for "target" and return it.
 // Uses *scratch as scratch space, and the returned pointer will point
 // into this scratch space.
-static const char *EncodeKey(std::string *scratch, const Slice &target) {
+static const char* EncodeKey(std::string* scratch, const Slice& target) {
   scratch->clear();
   PutVarint32(scratch, target.size());
   scratch->append(target.data(), target.size());
   return scratch->data();
 }
 class LeafIndexIterator : public Iterator {
-   public:
-  explicit LeafIndexIterator(LeafIndex::Index *index) : index(index) {
+ public:
+  explicit LeafIndexIterator(LeafIndex::Index* index) : index(index) {
     iter_ = index->begin();
   }
   virtual bool Valid() const { return iter_ != index->end() && iter_->second; }
-  virtual void Seek(const Slice &k) {
+  virtual void Seek(const Slice& k) {
     iter_ = index->lower_bound(k.ToString());
   }
   virtual void SeekToFirst() { iter_ = index->begin(); }
@@ -81,22 +87,23 @@ class LeafIndexIterator : public Iterator {
     assert(true);
   }
   virtual Slice key() const {
-    return iter_->first; // GetLengthPrefixedSlice((char *)(iter_->second));
+    return iter_->first;  // GetLengthPrefixedSlice((char *)(iter_->second));
   }
   virtual Slice value() const {
-    Slice key_slice = GetLengthPrefixedSlice((char *)(iter_->second));
+    Slice key_slice = GetLengthPrefixedSlice((char*)(iter_->second));
     return GetLengthPrefixedSlice(key_slice.data() + key_slice.size());
   }
   virtual Status status() const { return Status::OK(); }
-private:
-  LeafIndex::Index *index;
+
+ private:
+  LeafIndex::Index* index;
   LeafIndex::Index::iterator iter_;
   // No copying allowed
-  LeafIndexIterator(const LeafIndexIterator &);
-  void operator=(const LeafIndexIterator &);
+  LeafIndexIterator(const LeafIndexIterator&);
+  void operator=(const LeafIndexIterator&);
 };
 
-Iterator *LeafIndex::NewIterator() { return new LeafIndexIterator(&index_); }
+Iterator* LeafIndex::NewIterator() { return new LeafIndexIterator(&index_); }
 Status LeafIndex::AddCounter(size_t added) {
   counters_ += added;
   nvmem->UpdateCounter(counters_);
@@ -110,14 +117,14 @@ Status LeafIndex::ResetCounter() {
 
 size_t LeafIndex::GetCounter() { return nvmem->GetCounter(); }
 
-Status LeafIndex::AddBatch(const WriteBatch *batch) { return Status::OK(); }
+Status LeafIndex::AddBatch(const WriteBatch* batch) { return Status::OK(); }
 
 bool LeafIndex::AddIndex(Slice key, uint64_t val) {
   index_[key.ToString()] = val;
   return true;
 }
 
-Status LeafIndex::Recovery(SequenceNumber &max_sequence) {
+Status LeafIndex::Recovery(SequenceNumber& max_sequence) {
   // ToDo Get the right counters
   // Because updatecounter is not called in testcase, counters is set to 20
   int counters = nvmem->GetCounter();
@@ -128,25 +135,23 @@ Status LeafIndex::Recovery(SequenceNumber &max_sequence) {
   counters_ = counters;
   std::cout << "Recovery counts: " << counters << "\n";
   if (counters > 0) {
-    const char *key_ptr =
-        GetVarint32Ptr((char *)(address + offset),
-                       (char *)(address + offset + 5), &key_length);
-    std::string key = // Slice(key_ptr, key_length - 8).ToString();
+    const char* key_ptr = GetVarint32Ptr(
+        (char*)(address + offset), (char*)(address + offset + 5), &key_length);
+    std::string key =  // Slice(key_ptr, key_length - 8).ToString();
         std::string(key_ptr, key_length - 8);
     max_sequence = SequenceNumber(DecodeFixed64(key_ptr + key_length - 8));
     max_sequence = (max_sequence >> 8) + counters;
   }
 
   while (counters--) {
-    const char *key_ptr =
-        GetVarint32Ptr((char *)(address + offset),
-                       (char *)(address + offset + 5), &key_length);
+    const char* key_ptr = GetVarint32Ptr(
+        (char*)(address + offset), (char*)(address + offset + 5), &key_length);
     std::string key = std::string(key_ptr, key_length - 8);
     AddIndex(key, address + offset);
     offset += key_length + VarintLength(key_length);
-    const char *value_ptr =
-        GetVarint32Ptr((char *)(key_ptr + key_length),
-                       (char *)(key_ptr + key_length + 5), &value_length);
+    const char* value_ptr =
+        GetVarint32Ptr((char*)(key_ptr + key_length),
+                       (char*)(key_ptr + key_length + 5), &value_length);
     offset += value_length + VarintLength(value_length);
   }
   nvmem->UpdateIndex(offset);
@@ -154,15 +159,16 @@ Status LeafIndex::Recovery(SequenceNumber &max_sequence) {
   return Status::OK();
 }
 
-void LeafIndex::Add(SequenceNumber s, ValueType type, const Slice &key,
-                    const Slice &value) {
+void LeafIndex::Add(SequenceNumber s, ValueType type, const Slice& key,
+                    const Slice& value) {
   size_t key_size = key.size();
   size_t val_size = value.size();
   size_t internal_key_size = key_size + 8;
   const size_t encoded_len = VarintLength(internal_key_size) +
                              internal_key_size + VarintLength(val_size) +
                              val_size;
-  char *p = EncodeVarint32(buf, internal_key_size);
+  // buf = arena_.Allocate(encoded_len);
+  char* p = EncodeVarint32(buf, internal_key_size);
   memcpy(p, key.data(), key_size);
   p += key_size;
   EncodeFixed64(p, (s << 8) | type);
@@ -181,7 +187,7 @@ void LeafIndex::Add(SequenceNumber s, ValueType type, const Slice &key,
   AddCounter(1);
 }
 
-bool LeafIndex::Get(const LookupKey &key, std::string *value, Status *s) {
+bool LeafIndex::Get(const LookupKey& key, std::string* value, Status* s) {
   if (dynamic_filter != nullptr && !dynamic_filter->KeyMayMatch(key.user_key()))
     return false;
   ++searches_;
@@ -201,26 +207,26 @@ bool LeafIndex::Get(const LookupKey &key, std::string *value, Status *s) {
     // all entries with overly large sequence numbers.
     address = index_[memkey.ToString()];
     uint32_t key_length;
-    const char *key_ptr =
-        GetVarint32Ptr((char *)(address), (char *)(address + 5),
-                       &key_length); //
-                                     //  +5: we assume "p" is not corrupted
+    const char* key_ptr =
+        GetVarint32Ptr((char*)(address), (char*)(address + 5),
+                       &key_length);  //
+                                      //  +5: we assume "p" is not corrupted
     if (comparator_.comparator.user_comparator()->Compare(
             Slice(key_ptr, key_length - 8), key.user_key()) == 0) {
       // Correct user key
       const uint64_t tag = DecodeFixed64(key_ptr + key_length - 8);
 
       switch (static_cast<ValueType>(tag & 0xff)) {
-      case kTypeValue: {
-        Slice v = GetLengthPrefixedSlice(key_ptr + key_length);
-        value->assign(v.data(), v.size());
-        return true;
-      }
-      case kTypeDeletion:
-        *s = Status::NotFound(Slice());
-        return true;
-      default:
-        std::runtime_error(" can't find key type \n");
+        case kTypeValue: {
+          Slice v = GetLengthPrefixedSlice(key_ptr + key_length);
+          value->assign(v.data(), v.size());
+          return true;
+        }
+        case kTypeDeletion:
+          *s = Status::NotFound(Slice());
+          return true;
+        default:
+          std::runtime_error(" can't find key type \n");
       }
     } else {
       std::cout << " can't find key value \n";
@@ -228,4 +234,4 @@ bool LeafIndex::Get(const LookupKey &key, std::string *value, Status *s) {
   }
   return false;
 }
-} // namespace leveldb
+}  // namespace leveldb

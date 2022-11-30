@@ -13,10 +13,11 @@ namespace leveldb {
 // Wraps an instance whose destructor is never called.
 //
 // This is intended for use with function-level static variables.
-template <typename InstanceType> class NoDestructor {
-public:
+template <typename InstanceType>
+class NoDestructor {
+ public:
   template <typename... ConstructorArgTypes>
-  explicit NoDestructor(ConstructorArgTypes &&... constructor_args) {
+  explicit NoDestructor(ConstructorArgTypes&&... constructor_args) {
     static_assert(sizeof(instance_storage_) >= sizeof(InstanceType),
                   "instance_storage_ is not large enough to hold the instance");
     static_assert(
@@ -28,18 +29,18 @@ public:
 
   ~NoDestructor() = default;
 
-  NoDestructor(const NoDestructor &) = delete;
-  NoDestructor &operator=(const NoDestructor &) = delete;
+  NoDestructor(const NoDestructor&) = delete;
+  NoDestructor& operator=(const NoDestructor&) = delete;
 
-  InstanceType *get() {
-    return reinterpret_cast<InstanceType *>(&instance_storage_);
+  InstanceType* get() {
+    return reinterpret_cast<InstanceType*>(&instance_storage_);
   }
 
-private:
+ private:
   typename std::aligned_storage<sizeof(InstanceType),
                                 alignof(InstanceType)>::type instance_storage_;
 };
 
-} // namespace leveldb
+}  // namespace leveldb
 
-#endif // STORAGE_LEVELDB_UTIL_NO_DESTRUCTOR_H_
+#endif  // STORAGE_LEVELDB_UTIL_NO_DESTRUCTOR_H_

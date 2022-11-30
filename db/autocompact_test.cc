@@ -11,11 +11,11 @@
 namespace leveldb {
 
 class AutoCompactTest {
-public:
+ public:
   std::string dbname_;
-  Cache *tiny_cache_;
+  Cache* tiny_cache_;
   Options options_;
-  DB *db_;
+  DB* db_;
 
   AutoCompactTest() {
     dbname_ = test::TmpDir() + "/autocompact_test";
@@ -39,7 +39,7 @@ public:
     return std::string(buf);
   }
 
-  uint64_t Size(const Slice &start, const Slice &limit) {
+  uint64_t Size(const Slice& start, const Slice& limit) {
     Range r(start, limit);
     uint64_t size;
     db_->GetApproximateSizes(&r, 1, &size);
@@ -57,7 +57,7 @@ static const int kCount = kTotalSize / kValueSize;
 // compacted (verified by checking the size of the key space).
 void AutoCompactTest::DoReads(int n) {
   std::string value(kValueSize, 'x');
-  DBImpl *dbi = reinterpret_cast<DBImpl *>(db_);
+  DBImpl* dbi = reinterpret_cast<DBImpl*>(db_);
 
   // Fill database
   for (int i = 0; i < kCount; i++) {
@@ -79,7 +79,7 @@ void AutoCompactTest::DoReads(int n) {
   std::string limit_key = Key(n);
   for (int read = 0; true; read++) {
     ASSERT_LT(read, 100) << "Taking too long to compact";
-    Iterator *iter = db_->NewIterator(ReadOptions());
+    Iterator* iter = db_->NewIterator(ReadOptions());
     for (iter->SeekToFirst();
          iter->Valid() && iter->key().ToString() < limit_key; iter->Next()) {
       // Drop data
@@ -106,6 +106,6 @@ TEST(AutoCompactTest, ReadAll) { DoReads(kCount); }
 
 TEST(AutoCompactTest, ReadHalf) { DoReads(kCount / 2); }
 
-} // namespace leveldb
+}  // namespace leveldb
 
-int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
+int main(int argc, char** argv) { return leveldb::test::RunAllTests(); }

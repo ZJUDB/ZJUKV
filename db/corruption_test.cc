@@ -8,6 +8,10 @@
 #include "db/filename.h"
 #include "db/log_format.h"
 #include "db/version_set.h"
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include "leveldb/cache.h"
 #include "leveldb/env.h"
 #include "leveldb/table.h"
@@ -15,22 +19,18 @@
 #include "util/logging.h"
 #include "util/testharness.h"
 #include "util/testutil.h"
-#include <errno.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 
 namespace leveldb {
 
 static const int kValueSize = 1000;
 
 class CorruptionTest {
-public:
+ public:
   test::ErrorEnv env_;
   std::string dbname_;
-  Cache *tiny_cache_;
+  Cache* tiny_cache_;
   Options options_;
-  DB *db_;
+  DB* db_;
 
   CorruptionTest() {
     tiny_cache_ = NewLRUCache(100);
@@ -90,7 +90,7 @@ public:
     int bad_values = 0;
     int correct = 0;
     std::string value_space;
-    Iterator *iter = db_->NewIterator(ReadOptions());
+    Iterator* iter = db_->NewIterator(ReadOptions());
     for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
       uint64_t key;
       Slice in(iter->key());
@@ -130,7 +130,7 @@ public:
     int picked_number = -1;
     for (size_t i = 0; i < filenames.size(); i++) {
       if (ParseFileName(filenames[i], &number, &type) && type == filetype &&
-          int(number) > picked_number) { // Pick latest file
+          int(number) > picked_number) {  // Pick latest file
         fname = dbname_ + "/" + filenames[i];
         picked_number = number;
       }
@@ -139,7 +139,7 @@ public:
 
     struct stat sbuf;
     if (stat(fname.c_str(), &sbuf) != 0) {
-      const char *msg = strerror(errno);
+      const char* msg = strerror(errno);
       ASSERT_TRUE(false) << fname << ": " << msg;
     }
 
@@ -169,7 +169,7 @@ public:
     ASSERT_TRUE(s.ok()) << s.ToString();
   }
 
-  int Property(const std::string &name) {
+  int Property(const std::string& name) {
     std::string property;
     int result;
     if (db_->GetProperty(name, &property) &&
@@ -181,7 +181,7 @@ public:
   }
 
   // Return the ith key
-  Slice Key(int i, std::string *storage) {
+  Slice Key(int i, std::string* storage) {
     char buf[100];
     snprintf(buf, sizeof(buf), "%016d", i);
     storage->assign(buf, strlen(buf));
@@ -189,7 +189,7 @@ public:
   }
 
   // Return the value to associate with the specified key
-  Slice Value(int k, std::string *storage) {
+  Slice Value(int k, std::string* storage) {
     Random r(k);
     return test::RandomString(&r, kValueSize, storage);
   }
@@ -198,8 +198,8 @@ public:
 TEST(CorruptionTest, Recovery) {
   Build(100);
   Check(100, 100);
-  Corrupt(kLogFile, 19, 1); // WriteBatch tag for first record
-  Corrupt(kLogFile, log::kBlockSize + 1000, 1); // Somewhere in second block
+  Corrupt(kLogFile, 19, 1);  // WriteBatch tag for first record
+  Corrupt(kLogFile, log::kBlockSize + 1000, 1);  // Somewhere in second block
   Reopen();
 
   // The 64 records in the first two log blocks are completely lost.
@@ -231,7 +231,7 @@ TEST(CorruptionTest, NewFileErrorDuringWrite) {
 
 TEST(CorruptionTest, TableFile) {
   Build(100);
-  DBImpl *dbi = reinterpret_cast<DBImpl *>(db_);
+  DBImpl* dbi = reinterpret_cast<DBImpl*>(db_);
   dbi->TEST_CompactMemTable();
   dbi->TEST_CompactRange(0, nullptr, nullptr);
   dbi->TEST_CompactRange(1, nullptr, nullptr);
@@ -241,11 +241,11 @@ TEST(CorruptionTest, TableFile) {
 }
 
 TEST(CorruptionTest, TableFileRepair) {
-  options_.block_size = 2 * kValueSize; // Limit scope of corruption
+  options_.block_size = 2 * kValueSize;  // Limit scope of corruption
   options_.paranoid_checks = true;
   Reopen();
   Build(100);
-  DBImpl *dbi = reinterpret_cast<DBImpl *>(db_);
+  DBImpl* dbi = reinterpret_cast<DBImpl*>(db_);
   dbi->TEST_CompactMemTable();
   dbi->TEST_CompactRange(0, nullptr, nullptr);
   dbi->TEST_CompactRange(1, nullptr, nullptr);
@@ -257,8 +257,8 @@ TEST(CorruptionTest, TableFileRepair) {
 }
 
 TEST(CorruptionTest, TableFileIndexData) {
-  Build(10000); // Enough to build multiple Tables
-  DBImpl *dbi = reinterpret_cast<DBImpl *>(db_);
+  Build(10000);  // Enough to build multiple Tables
+  DBImpl* dbi = reinterpret_cast<DBImpl*>(db_);
   dbi->TEST_CompactMemTable();
 
   Corrupt(kTableFile, -2000, 500);
@@ -296,7 +296,7 @@ TEST(CorruptionTest, SequenceNumberRecovery) {
 
 TEST(CorruptionTest, CorruptedDescriptor) {
   ASSERT_OK(db_->Put(WriteOptions(), "foo", "hello"));
-  DBImpl *dbi = reinterpret_cast<DBImpl *>(db_);
+  DBImpl* dbi = reinterpret_cast<DBImpl*>(db_);
   dbi->TEST_CompactMemTable();
   dbi->TEST_CompactRange(0, nullptr, nullptr);
 
@@ -313,7 +313,7 @@ TEST(CorruptionTest, CorruptedDescriptor) {
 
 TEST(CorruptionTest, CompactionInputError) {
   Build(10);
-  DBImpl *dbi = reinterpret_cast<DBImpl *>(db_);
+  DBImpl* dbi = reinterpret_cast<DBImpl*>(db_);
   dbi->TEST_CompactMemTable();
   const int last = config::kMaxMemCompactLevel;
   ASSERT_EQ(1, Property("leveldb.num-files-at-level" + NumberToString(last)));
@@ -330,7 +330,7 @@ TEST(CorruptionTest, CompactionInputErrorParanoid) {
   options_.paranoid_checks = true;
   options_.write_buffer_size = 512 << 10;
   Reopen();
-  DBImpl *dbi = reinterpret_cast<DBImpl *>(db_);
+  DBImpl* dbi = reinterpret_cast<DBImpl*>(db_);
 
   // Make multiple inputs so we need to compact.
   for (int i = 0; i < 2; i++) {
@@ -349,7 +349,7 @@ TEST(CorruptionTest, CompactionInputErrorParanoid) {
 
 TEST(CorruptionTest, UnrelatedKeys) {
   Build(10);
-  DBImpl *dbi = reinterpret_cast<DBImpl *>(db_);
+  DBImpl* dbi = reinterpret_cast<DBImpl*>(db_);
   dbi->TEST_CompactMemTable();
   Corrupt(kTableFile, 100, 1);
 
@@ -363,6 +363,6 @@ TEST(CorruptionTest, UnrelatedKeys) {
   ASSERT_EQ(Value(1000, &tmp2).ToString(), v);
 }
 
-} // namespace leveldb
+}  // namespace leveldb
 
-int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
+int main(int argc, char** argv) { return leveldb::test::RunAllTests(); }

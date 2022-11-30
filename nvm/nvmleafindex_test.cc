@@ -1,10 +1,10 @@
 #include "nvm/nvmleafindex.h"
 
 class Random {
-private:
+ private:
   uint32_t seed_;
 
-public:
+ public:
   explicit Random(uint32_t s) : seed_(s & 0x7fffffffu) {
     // Avoid bad seeds.
     if (seed_ == 0 || seed_ == 2147483647L) {
@@ -12,8 +12,8 @@ public:
     }
   }
   uint32_t Next() {
-    static const uint32_t M = 2147483647L; // 2^31-1
-    static const uint64_t A = 16807;       // bits 14, 8, 7, 5, 2, 1, 0
+    static const uint32_t M = 2147483647L;  // 2^31-1
+    static const uint64_t A = 16807;        // bits 14, 8, 7, 5, 2, 1, 0
     uint64_t product = seed_ * A;
     seed_ = static_cast<uint32_t>((product >> 31) + (product & M));
     if (seed_ > M) {
@@ -28,29 +28,28 @@ public:
   uint32_t Skewed(int max_log) { return Uniform(1 << Uniform(max_log + 1)); }
 };
 
-leveldb::Slice RandomString(Random *rnd, int len, std::string *dst) {
+leveldb::Slice RandomString(Random* rnd, int len, std::string* dst) {
   dst->resize(len);
   for (int i = 0; i < len; i++) {
-    (*dst)[i] = static_cast<char>(' ' + rnd->Uniform(95)); // ' ' .. '~'
+    (*dst)[i] = static_cast<char>(' ' + rnd->Uniform(95));  // ' ' .. '~'
   }
   return leveldb::Slice(*dst);
 }
 
-std::string RandomNumberKey(Random *rnd) {
+std::string RandomNumberKey(Random* rnd) {
   char key[100];
   snprintf(key, sizeof(key), "%016d\n", rand() % 3000000);
   return std::string(key, 16);
 }
 
-std::string RandomString(Random *rnd, int len) {
+std::string RandomString(Random* rnd, int len) {
   std::string r;
   RandomString(rnd, len, &r);
   return r;
 }
 
 void SequentialWrite() {
-
-  leveldb::DB *db_ = nullptr;
+  leveldb::DB* db_ = nullptr;
   // leveldb::silkstore::NvmemLeafIndex* db = new NvmemLeafIndex(Options(),
   // nullptr);
   leveldb::Status s = leveldb::silkstore::NvmLeafIndex::OpenNvmLeafIndex(
@@ -113,7 +112,7 @@ void SequentialWrite() {
 
   std::cout << " ######### Begin Slice Iterator Test ######## \n";
   startTime = clock();
-  leveldb::Iterator *sit = db_->NewIterator(leveldb::ReadOptions());
+  leveldb::Iterator* sit = db_->NewIterator(leveldb::ReadOptions());
   sit->SeekToFirst();
   auto mit = m.begin();
   int count = 0;
@@ -165,8 +164,7 @@ void SequentialWrite() {
 }
 
 void WriteBatchTest() {
-
-  leveldb::DB *db_ = nullptr;
+  leveldb::DB* db_ = nullptr;
   // leveldb::silkstore::NvmemLeafIndex* db = new NvmemLeafIndex(Options(),
   // nullptr);
   leveldb::Status s = leveldb::silkstore::NvmLeafIndex::OpenNvmLeafIndex(
@@ -257,8 +255,7 @@ void WriteBatchTest() {
 }
 
 void Bench() {
-
-  leveldb::DB *db_ = nullptr;
+  leveldb::DB* db_ = nullptr;
   // leveldb::silkstore::NvmemLeafIndex* db = new NvmemLeafIndex(Options(),
   // nullptr);
   leveldb::Status s = leveldb::silkstore::NvmLeafIndex::OpenNvmLeafIndex(
@@ -333,8 +330,7 @@ void Bench() {
 }
 
 void WriteBatchBench() {
-
-  leveldb::DB *db_ = nullptr;
+  leveldb::DB* db_ = nullptr;
   // leveldb::silkstore::NvmemLeafIndex* db = new NvmemLeafIndex(Options(),
   // nullptr);
   leveldb::Status s = leveldb::silkstore::NvmLeafIndex::OpenNvmLeafIndex(
@@ -480,8 +476,7 @@ leveldb::silkstore::NvmemLeafIndex::OpenLeafIndex(leveldb::Options(), "", &db_);
 void GetBench() {}
 
 void IterBench() {
-
-  leveldb::DB *db_ = nullptr;
+  leveldb::DB* db_ = nullptr;
   // leveldb::silkstore::NvmemLeafIndex* db = new NvmemLeafIndex(Options(),
   // nullptr);
   leveldb::Status s = leveldb::silkstore::NvmLeafIndex::OpenNvmLeafIndex(
@@ -546,7 +541,7 @@ void IterBench() {
 }
 
 void EmptyIter() {
-  leveldb::DB *db_ = nullptr;
+  leveldb::DB* db_ = nullptr;
 
   // leveldb::silkstore::NvmemLeafIndex* db = new NvmemLeafIndex(Options(),
   // nullptr);
@@ -570,7 +565,7 @@ void EmptyIter() {
 }
 
 void Recovey() {
-  leveldb::DB *db_ = nullptr;
+  leveldb::DB* db_ = nullptr;
   // leveldb::silkstore::NvmemLeafIndex* db = new NvmemLeafIndex(Options(),
   // nullptr);
   leveldb::Options ops;
@@ -587,7 +582,7 @@ void Recovey() {
   Random rnd(0);
   std::vector<std::string> keys(kNumKVs);
   for (int i = 0; i < kNumKVs; ++i) {
-    keys[i] = std::to_string(i + 10); // RandomNumberKey(&rnd);
+    keys[i] = std::to_string(i + 10);  // RandomNumberKey(&rnd);
   }
   // sort(keys.begin(), keys.end());
   std::map<std::string, std::string> m;
@@ -596,7 +591,7 @@ void Recovey() {
   for (int i = 0; i < kNumOps; i++) {
     std::string key = keys[i % kNumKVs];
     std::string value =
-        std::to_string(i * 10 + 15); // RandomString(&rnd, kValueSize);
+        std::to_string(i * 10 + 15);  // RandomString(&rnd, kValueSize);
     std::cout << "insert: " << key << " value " << value << "\n";
     batch.Put(key, value);
     db_->Write(leveldb::WriteOptions(), &batch);
@@ -630,8 +625,7 @@ void Recovey() {
   std::cout << "kNumOps: " << kNumOps << " count " << count << "\n";
 }
 
-int main(int argc, char const *argv[]) {
-
+int main(int argc, char const* argv[]) {
   // IterTest();
   // EmptyIter();
   Recovey();

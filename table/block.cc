@@ -6,12 +6,12 @@
 
 #include "table/block.h"
 
+#include <algorithm>
+#include <vector>
 #include "leveldb/comparator.h"
 #include "table/format.h"
 #include "util/coding.h"
 #include "util/logging.h"
-#include <algorithm>
-#include <vector>
 
 namespace leveldb {
 
@@ -20,11 +20,12 @@ inline uint32_t Block::NumRestarts() const {
   return DecodeFixed32(data_ + size_ - sizeof(uint32_t));
 }
 
-Block::Block(const BlockContents &contents)
-    : data_(contents.data.data()), size_(contents.data.size()),
+Block::Block(const BlockContents& contents)
+    : data_(contents.data.data()),
+      size_(contents.data.size()),
       owned_(contents.heap_allocated) {
   if (size_ < sizeof(uint32_t)) {
-    size_ = 0; // Error marker
+    size_ = 0;  // Error marker
   } else {
     size_t max_restarts_allowed = (size_ - sizeof(uint32_t)) / sizeof(uint32_t);
     if (NumRestarts() > max_restarts_allowed) {
@@ -49,24 +50,20 @@ Block::~Block() {
 //
 // If any errors are detected, returns nullptr.  Otherwise, returns a
 // pointer to the key delta (just past the three decoded values).
-static inline const char *DecodeEntry(const char *p, const char *limit,
-                                      uint32_t *shared, uint32_t *non_shared,
-                                      uint32_t *value_length) {
-  if (limit - p < 3)
-    return nullptr;
-  *shared = reinterpret_cast<const unsigned char *>(p)[0];
-  *non_shared = reinterpret_cast<const unsigned char *>(p)[1];
-  *value_length = reinterpret_cast<const unsigned char *>(p)[2];
+static inline const char* DecodeEntry(const char* p, const char* limit,
+                                      uint32_t* shared, uint32_t* non_shared,
+                                      uint32_t* value_length) {
+  if (limit - p < 3) return nullptr;
+  *shared = reinterpret_cast<const unsigned char*>(p)[0];
+  *non_shared = reinterpret_cast<const unsigned char*>(p)[1];
+  *value_length = reinterpret_cast<const unsigned char*>(p)[2];
   if ((*shared | *non_shared | *value_length) < 128) {
     // Fast path: all three values are encoded in one byte each
     p += 3;
   } else {
-    if ((p = GetVarint32Ptr(p, limit, shared)) == nullptr)
-      return nullptr;
-    if ((p = GetVarint32Ptr(p, limit, non_shared)) == nullptr)
-      return nullptr;
-    if ((p = GetVarint32Ptr(p, limit, value_length)) == nullptr)
-      return nullptr;
+    if ((p = GetVarint32Ptr(p, limit, shared)) == nullptr) return nullptr;
+    if ((p = GetVarint32Ptr(p, limit, non_shared)) == nullptr) return nullptr;
+    if ((p = GetVarint32Ptr(p, limit, value_length)) == nullptr) return nullptr;
   }
 
   if (static_cast<uint32_t>(limit - p) < (*non_shared + *value_length)) {
@@ -76,20 +73,20 @@ static inline const char *DecodeEntry(const char *p, const char *limit,
 }
 
 class Block::Iter : public Iterator {
-private:
-  const Comparator *const comparator_;
-  const char *const data_;      // underlying block contents
-  uint32_t const restarts_;     // Offset of restart array (list of fixed32)
-  uint32_t const num_restarts_; // Number of uint32_t entries in restart array
+ private:
+  const Comparator* const comparator_;
+  const char* const data_;       // underlying block contents
+  uint32_t const restarts_;      // Offset of restart array (list of fixed32)
+  uint32_t const num_restarts_;  // Number of uint32_t entries in restart array
 
   // current_ is offset in data_ of current entry.  >= restarts_ if !Valid
   uint32_t current_;
-  uint32_t restart_index_; // Index of restart block in which current_ falls
+  uint32_t restart_index_;  // Index of restart block in which current_ falls
   std::string key_;
   Slice value_;
   Status status_;
 
-  inline int Compare(const Slice &a, const Slice &b) const {
+  inline int Compare(const Slice& a, const Slice& b) const {
     return comparator_->Compare(a, b);
   }
 
@@ -113,11 +110,14 @@ private:
     value_ = Slice(data_ + offset, 0);
   }
 
-public:
-  Iter(const Comparator *comparator, const char *data, uint32_t restarts,
+ public:
+  Iter(const Comparator* comparator, const char* data, uint32_t restarts,
        uint32_t num_restarts)
-      : comparator_(comparator), data_(data), restarts_(restarts),
-        num_restarts_(num_restarts), current_(restarts_),
+      : comparator_(comparator),
+        data_(data),
+        restarts_(restarts),
+        num_restarts_(num_restarts),
+        current_(restarts_),
         restart_index_(num_restarts_) {
     assert(num_restarts_ > 0);
   }
@@ -159,7 +159,7 @@ public:
     } while (ParseNextKey() && NextEntryOffset() < original);
   }
 
-  virtual void Seek(const Slice &target) {
+  virtual void Seek(const Slice& target) {
     // Binary search in restart array to find the last restart point
     // with a key < target
     uint32_t left = 0;
@@ -168,7 +168,7 @@ public:
       uint32_t mid = (left + right + 1) / 2;
       uint32_t region_offset = GetRestartPoint(mid);
       uint32_t shared, non_shared, value_length;
-      const char *key_ptr =
+      const char* key_ptr =
           DecodeEntry(data_ + region_offset, data_ + restarts_, &shared,
                       &non_shared, &value_length);
       if (key_ptr == nullptr || (shared != 0)) {
@@ -211,7 +211,7 @@ public:
     }
   }
 
-private:
+ private:
   void CorruptionError() {
     current_ = restarts_;
     restart_index_ = num_restarts_;
@@ -222,8 +222,8 @@ private:
 
   bool ParseNextKey() {
     current_ = NextEntryOffset();
-    const char *p = data_ + current_;
-    const char *limit = data_ + restarts_; // Restarts come right after data
+    const char* p = data_ + current_;
+    const char* limit = data_ + restarts_;  // Restarts come right after data
     if (p >= limit) {
       // No more entries to return.  Mark as invalid.
       current_ = restarts_;
@@ -250,7 +250,7 @@ private:
   }
 };
 
-Iterator *Block::NewIterator(const Comparator *cmp) {
+Iterator* Block::NewIterator(const Comparator* cmp) {
   if (size_ < sizeof(uint32_t)) {
     return NewErrorIterator(Status::Corruption("bad block contents"));
   }
@@ -262,4 +262,4 @@ Iterator *Block::NewIterator(const Comparator *cmp) {
   }
 }
 
-} // namespace leveldb
+}  // namespace leveldb

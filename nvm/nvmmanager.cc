@@ -14,8 +14,8 @@ void NvmManager::init() {
   // pmdk allows PMEM_MMAP_HINT=map_addr to set the map address
   int is_pmem = false;
   size_t mapped_len = cap_;
-  data_ = (char *)pmem_map_file(nvm_file_, cap_, PMEM_FILE_CREATE, 0666,
-                                &mapped_len, &is_pmem);
+  data_ = (char*)pmem_map_file(nvm_file_, cap_, PMEM_FILE_CREATE, 0666,
+                               &mapped_len, &is_pmem);
   if (!is_pmem) {
     perror("is not pmem path");
     printf("%s is not pmem path\n", nvm_file_);
@@ -33,12 +33,12 @@ void NvmManager::init() {
   }
 }
 
-Nvmem *NvmManager::reallocate(size_t offset, size_t cap) {
+Nvmem* NvmManager::reallocate(size_t offset, size_t cap) {
   std::lock_guard<std::mutex> lk(mtx);
   return new Nvmem(data_ + offset, cap, this);
 }
 
-Nvmem *NvmManager::allocate(size_t size) {
+Nvmem* NvmManager::allocate(size_t size) {
   std::lock_guard<std::mutex> lk(mtx);
 
   if (index_ + size >= cap_) {
@@ -52,7 +52,7 @@ Nvmem *NvmManager::allocate(size_t size) {
     fprintf(stderr, "NvmManager is out can't allocate nvmem \n");
     assert(false);
   }
-  Nvmem *nvm = new Nvmem(data_ + index_, size, this);
+  Nvmem* nvm = new Nvmem(data_ + index_, size, this);
   memUsage.emplace_back(index_, size);
   index_ += size;
   return nvm;
@@ -68,7 +68,7 @@ std::string NvmManager::getNvmInfo() {
   return info;
 }
 
-bool NvmManager::recovery(const std::vector<size_t> &records) {
+bool NvmManager::recovery(const std::vector<size_t>& records) {
   // recover data
   index_ = records[0];
   memUsage.clear();
@@ -78,7 +78,7 @@ bool NvmManager::recovery(const std::vector<size_t> &records) {
   return true;
 }
 
-void NvmManager::free(char *address) {
+void NvmManager::free(char* address) {
   std::lock_guard<std::mutex> lk(mtx);
   if (memUsage.empty()) {
     printf("memUsage is empty can free memory\n");
@@ -99,11 +99,11 @@ void NvmManager::free(char *address) {
   assert(suc);
 }
 
-NvmManager::NvmManager(const char *nvm_file, size_t cap)
+NvmManager::NvmManager(const char* nvm_file, size_t cap)
     : nvm_file_(nvm_file), cap_(cap), index_(LOGCAP), logCap_(LOGCAP) {
   init();
 }
 NvmManager::~NvmManager() { pmem_unmap(data_, cap_); }
 
-} // namespace silkstore
-} // namespace leveldb
+}  // namespace silkstore
+}  // namespace leveldb

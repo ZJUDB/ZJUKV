@@ -5,17 +5,17 @@
 #include "helpers/memenv/memenv.h"
 
 #include "db/db_impl.h"
+#include <string>
+#include <vector>
 #include "leveldb/db.h"
 #include "leveldb/env.h"
 #include "util/testharness.h"
-#include <string>
-#include <vector>
 
 namespace leveldb {
 
 class MemEnvTest {
-public:
-  Env *env_;
+ public:
+  Env* env_;
 
   MemEnvTest() : env_(NewMemEnv(Env::Default())) {}
   ~MemEnvTest() { delete env_; }
@@ -23,7 +23,7 @@ public:
 
 TEST(MemEnvTest, Basics) {
   uint64_t file_size;
-  WritableFile *writable_file;
+  WritableFile* writable_file;
   std::vector<std::string> children;
 
   ASSERT_OK(env_->CreateDir("/dir"));
@@ -73,8 +73,8 @@ TEST(MemEnvTest, Basics) {
   ASSERT_EQ(8, file_size);
 
   // Check that opening non-existent file fails.
-  SequentialFile *seq_file;
-  RandomAccessFile *rand_file;
+  SequentialFile* seq_file;
+  RandomAccessFile* rand_file;
   ASSERT_TRUE(!env_->NewSequentialFile("/dir/non_existent", &seq_file).ok());
   ASSERT_TRUE(!seq_file);
   ASSERT_TRUE(!env_->NewRandomAccessFile("/dir/non_existent", &rand_file).ok());
@@ -90,9 +90,9 @@ TEST(MemEnvTest, Basics) {
 }
 
 TEST(MemEnvTest, ReadWrite) {
-  WritableFile *writable_file;
-  SequentialFile *seq_file;
-  RandomAccessFile *rand_file;
+  WritableFile* writable_file;
+  SequentialFile* seq_file;
+  RandomAccessFile* rand_file;
   Slice result;
   char scratch[100];
 
@@ -105,25 +105,25 @@ TEST(MemEnvTest, ReadWrite) {
 
   // Read sequentially.
   ASSERT_OK(env_->NewSequentialFile("/dir/f", &seq_file));
-  ASSERT_OK(seq_file->Read(5, &result, scratch)); // Read "hello".
+  ASSERT_OK(seq_file->Read(5, &result, scratch));  // Read "hello".
   ASSERT_EQ(0, result.compare("hello"));
   ASSERT_OK(seq_file->Skip(1));
-  ASSERT_OK(seq_file->Read(1000, &result, scratch)); // Read "world".
+  ASSERT_OK(seq_file->Read(1000, &result, scratch));  // Read "world".
   ASSERT_EQ(0, result.compare("world"));
-  ASSERT_OK(seq_file->Read(1000, &result, scratch)); // Try reading past EOF.
+  ASSERT_OK(seq_file->Read(1000, &result, scratch));  // Try reading past EOF.
   ASSERT_EQ(0, result.size());
-  ASSERT_OK(seq_file->Skip(100)); // Try to skip past end of file.
+  ASSERT_OK(seq_file->Skip(100));  // Try to skip past end of file.
   ASSERT_OK(seq_file->Read(1000, &result, scratch));
   ASSERT_EQ(0, result.size());
   delete seq_file;
 
   // Random reads.
   ASSERT_OK(env_->NewRandomAccessFile("/dir/f", &rand_file));
-  ASSERT_OK(rand_file->Read(6, 5, &result, scratch)); // Read "world".
+  ASSERT_OK(rand_file->Read(6, 5, &result, scratch));  // Read "world".
   ASSERT_EQ(0, result.compare("world"));
-  ASSERT_OK(rand_file->Read(0, 5, &result, scratch)); // Read "hello".
+  ASSERT_OK(rand_file->Read(0, 5, &result, scratch));  // Read "hello".
   ASSERT_EQ(0, result.compare("hello"));
-  ASSERT_OK(rand_file->Read(10, 100, &result, scratch)); // Read "d".
+  ASSERT_OK(rand_file->Read(10, 100, &result, scratch));  // Read "d".
   ASSERT_EQ(0, result.compare("d"));
 
   // Too high offset.
@@ -132,7 +132,7 @@ TEST(MemEnvTest, ReadWrite) {
 }
 
 TEST(MemEnvTest, Locks) {
-  FileLock *lock;
+  FileLock* lock;
 
   // These are no-ops, but we test they return success.
   ASSERT_OK(env_->LockFile("some file", &lock));
@@ -144,7 +144,7 @@ TEST(MemEnvTest, Misc) {
   ASSERT_OK(env_->GetTestDirectory(&test_dir));
   ASSERT_TRUE(!test_dir.empty());
 
-  WritableFile *writable_file;
+  WritableFile* writable_file;
   ASSERT_OK(env_->NewWritableFile("/a/b", &writable_file));
 
   // These are no-ops, but we test they return success.
@@ -156,23 +156,23 @@ TEST(MemEnvTest, Misc) {
 
 TEST(MemEnvTest, LargeWrite) {
   const size_t kWriteSize = 300 * 1024;
-  char *scratch = new char[kWriteSize * 2];
+  char* scratch = new char[kWriteSize * 2];
 
   std::string write_data;
   for (size_t i = 0; i < kWriteSize; ++i) {
     write_data.append(1, static_cast<char>(i));
   }
 
-  WritableFile *writable_file;
+  WritableFile* writable_file;
   ASSERT_OK(env_->NewWritableFile("/dir/f", &writable_file));
   ASSERT_OK(writable_file->Append("foo"));
   ASSERT_OK(writable_file->Append(write_data));
   delete writable_file;
 
-  SequentialFile *seq_file;
+  SequentialFile* seq_file;
   Slice result;
   ASSERT_OK(env_->NewSequentialFile("/dir/f", &seq_file));
-  ASSERT_OK(seq_file->Read(3, &result, scratch)); // Read "foo".
+  ASSERT_OK(seq_file->Read(3, &result, scratch));  // Read "foo".
   ASSERT_EQ(0, result.compare("foo"));
 
   size_t read = 0;
@@ -191,7 +191,7 @@ TEST(MemEnvTest, DBTest) {
   Options options;
   options.create_if_missing = true;
   options.env = env_;
-  DB *db;
+  DB* db;
 
   const Slice keys[] = {Slice("aaa"), Slice("bbb"), Slice("ccc")};
   const Slice vals[] = {Slice("foo"), Slice("bar"), Slice("baz")};
@@ -207,7 +207,7 @@ TEST(MemEnvTest, DBTest) {
     ASSERT_TRUE(res == vals[i]);
   }
 
-  Iterator *iterator = db->NewIterator(ReadOptions());
+  Iterator* iterator = db->NewIterator(ReadOptions());
   iterator->SeekToFirst();
   for (size_t i = 0; i < 3; ++i) {
     ASSERT_TRUE(iterator->Valid());
@@ -218,7 +218,7 @@ TEST(MemEnvTest, DBTest) {
   ASSERT_TRUE(!iterator->Valid());
   delete iterator;
 
-  DBImpl *dbi = reinterpret_cast<DBImpl *>(db);
+  DBImpl* dbi = reinterpret_cast<DBImpl*>(db);
   ASSERT_OK(dbi->TEST_CompactMemTable());
 
   for (size_t i = 0; i < 3; ++i) {
@@ -230,6 +230,6 @@ TEST(MemEnvTest, DBTest) {
   delete db;
 }
 
-} // namespace leveldb
+}  // namespace leveldb
 
-int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
+int main(int argc, char** argv) { return leveldb::test::RunAllTests(); }

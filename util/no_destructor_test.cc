@@ -14,7 +14,7 @@ namespace leveldb {
 namespace {
 
 struct DoNotDestruct {
-public:
+ public:
   DoNotDestruct(uint32_t a, uint64_t b) : a(a), b(b) {}
   ~DoNotDestruct() { std::abort(); }
 
@@ -26,7 +26,7 @@ public:
 constexpr const uint32_t kGoldenA = 0xdeadbeef;
 constexpr const uint64_t kGoldenB = 0xaabbccddeeffaabb;
 
-} // namespace
+}  // namespace
 
 class NoDestructorTest {};
 
@@ -42,6 +42,6 @@ TEST(NoDestructorTest, StaticInstance) {
   ASSERT_EQ(kGoldenB, instance.get()->b);
 }
 
-} // namespace leveldb
+}  // namespace leveldb
 
-int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
+int main(int argc, char** argv) { return leveldb::test::RunAllTests(); }

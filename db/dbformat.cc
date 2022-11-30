@@ -3,9 +3,9 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "db/dbformat.h"
+#include <stdio.h>
 #include "port/port.h"
 #include "util/coding.h"
-#include <stdio.h>
 
 namespace leveldb {
 
@@ -15,7 +15,7 @@ static uint64_t PackSequenceAndType(uint64_t seq, ValueType t) {
   return (seq << 8) | t;
 }
 
-void AppendInternalKey(std::string *result, const ParsedInternalKey &key) {
+void AppendInternalKey(std::string* result, const ParsedInternalKey& key) {
   result->append(key.user_key.data(), key.user_key.size());
   PutFixed64(result, PackSequenceAndType(key.sequence, key.type));
 }
@@ -42,11 +42,11 @@ std::string InternalKey::DebugString() const {
   return result;
 }
 
-const char *InternalKeyComparator::Name() const {
+const char* InternalKeyComparator::Name() const {
   return "leveldb.InternalKeyComparator";
 }
 
-int InternalKeyComparator::Compare(const Slice &akey, const Slice &bkey) const {
+int InternalKeyComparator::Compare(const Slice& akey, const Slice& bkey) const {
   // Order by:
   //    increasing user key (according to user-supplied comparator)
   //    decreasing sequence number
@@ -64,8 +64,8 @@ int InternalKeyComparator::Compare(const Slice &akey, const Slice &bkey) const {
   return r;
 }
 
-void InternalKeyComparator::FindShortestSeparator(std::string *start,
-                                                  const Slice &limit) const {
+void InternalKeyComparator::FindShortestSeparator(std::string* start,
+                                                  const Slice& limit) const {
   // Attempt to shorten the user portion of the key
   Slice user_start = ExtractUserKey(*start);
   Slice user_limit = ExtractUserKey(limit);
@@ -83,7 +83,7 @@ void InternalKeyComparator::FindShortestSeparator(std::string *start,
   }
 }
 
-void InternalKeyComparator::FindShortSuccessor(std::string *key) const {
+void InternalKeyComparator::FindShortSuccessor(std::string* key) const {
   Slice user_key = ExtractUserKey(*key);
   std::string tmp(user_key.data(), user_key.size());
   user_comparator_->FindShortSuccessor(&tmp);
@@ -98,13 +98,13 @@ void InternalKeyComparator::FindShortSuccessor(std::string *key) const {
   }
 }
 
-const char *InternalFilterPolicy::Name() const { return user_policy_->Name(); }
+const char* InternalFilterPolicy::Name() const { return user_policy_->Name(); }
 
-void InternalFilterPolicy::CreateFilter(const Slice *keys, int n,
-                                        std::string *dst) const {
+void InternalFilterPolicy::CreateFilter(const Slice* keys, int n,
+                                        std::string* dst) const {
   // We rely on the fact that the code in table.cc does not mind us
   // adjusting keys[].
-  Slice *mkey = const_cast<Slice *>(keys);
+  Slice* mkey = const_cast<Slice*>(keys);
   for (int i = 0; i < n; i++) {
     mkey[i] = ExtractUserKey(keys[i]);
     // TODO(sanjay): Suppress dups?
@@ -112,14 +112,14 @@ void InternalFilterPolicy::CreateFilter(const Slice *keys, int n,
   user_policy_->CreateFilter(keys, n, dst);
 }
 
-bool InternalFilterPolicy::KeyMayMatch(const Slice &key, const Slice &f) const {
+bool InternalFilterPolicy::KeyMayMatch(const Slice& key, const Slice& f) const {
   return user_policy_->KeyMayMatch(ExtractUserKey(key), f);
 }
 
-LookupKey::LookupKey(const Slice &user_key, SequenceNumber s) {
+LookupKey::LookupKey(const Slice& user_key, SequenceNumber s) {
   size_t usize = user_key.size();
-  size_t needed = usize + 13; // A conservative estimate
-  char *dst;
+  size_t needed = usize + 13;  // A conservative estimate
+  char* dst;
   if (needed <= sizeof(space_)) {
     dst = space_;
   } else {
@@ -135,4 +135,4 @@ LookupKey::LookupKey(const Slice &user_key, SequenceNumber s) {
   end_ = dst;
 }
 
-} // namespace leveldb
+}  // namespace leveldb

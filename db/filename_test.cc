@@ -20,7 +20,7 @@ TEST(FileNameTest, Parse) {
 
   // Successful parses
   static struct {
-    const char *fname;
+    const char* fname;
     uint64_t number;
     FileType type;
   } cases[] = {
@@ -44,7 +44,7 @@ TEST(FileNameTest, Parse) {
   }
 
   // Errors
-  static const char *errors[] = {"",
+  static const char* errors[] = {"",
                                  "foo",
                                  "foo-dx-100.log",
                                  ".log",
@@ -126,6 +126,6 @@ TEST(FileNameTest, Construction) {
   ASSERT_EQ(kInfoLogFile, type);
 }
 
-} // namespace leveldb
+}  // namespace leveldb
 
-int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
+int main(int argc, char** argv) { return leveldb::test::RunAllTests(); }

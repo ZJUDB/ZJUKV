@@ -32,8 +32,8 @@ class LeafIndex {
   // explicit LeafIndex(const InternalKeyComparator& comparator,
   //    DynamicFilter * dynamic_filter, silkstore::Nvmem *nvmem,
   //    silkstore::NvmLog *nvmlog);
-  explicit LeafIndex(const InternalKeyComparator &comparator,
-                     DynamicFilter *dynamic_filter, silkstore::Nvmem *nvmem);
+  explicit LeafIndex(const InternalKeyComparator& comparator,
+                     DynamicFilter* dynamic_filter, silkstore::Nvmem* nvmem);
 
   // Increase reference count.
   void Ref() {
@@ -62,15 +62,15 @@ class LeafIndex {
   // while the returned iterator is live.  The keys returned by this
   // iterator are internal keys encoded by AppendInternalKey in the
   // db/format.{h,cc} module.
-  Iterator *NewIterator();
+  Iterator* NewIterator();
   // Add an entry into memtable that maps key to value at the
   // specified sequence number and with the specified type.
   // Typically value will be empty if type==kTypeDeletion.
-  void Add(SequenceNumber seq, ValueType type, const Slice &key,
-           const Slice &value);
-  Status AddBatch(const WriteBatch *b);
+  void Add(SequenceNumber seq, ValueType type, const Slice& key,
+           const Slice& value);
+  Status AddBatch(const WriteBatch* b);
   Status ResetCounter();
-  Status Recovery(SequenceNumber &max_sequence);
+  Status Recovery(SequenceNumber& max_sequence);
   Status AddCounter(size_t added);
   size_t GetCounter();
   bool AddIndex(Slice, uint64_t);
@@ -79,7 +79,7 @@ class LeafIndex {
   // If memtable contains a deletion for key, store a NotFound() error
   // in *status and return true.
   // Else, return false.
-  bool Get(const LookupKey &key, std::string *value, Status *s);
+  bool Get(const LookupKey& key, std::string* value, Status* s);
   size_t NumEntries() const;
   size_t Searches() const;
 
@@ -88,8 +88,8 @@ class LeafIndex {
   ~LeafIndex();
   struct KeyComparator {
     const InternalKeyComparator comparator;
-    explicit KeyComparator(const InternalKeyComparator &c) : comparator(c) {}
-    int operator()(const char *a, const char *b) const;
+    explicit KeyComparator(const InternalKeyComparator& c) : comparator(c) {}
+    int operator()(const char* a, const char* b) const;
   };
   friend class LeafIndexIterator;
   friend class LeafIndexBackwardIterator;
@@ -98,7 +98,7 @@ class LeafIndex {
   KeyComparator comparator_;
   int refs_;
   Index index_;
-  silkstore::Nvmem *nvmem;
+  silkstore::Nvmem* nvmem;
   char buf[1024ul * 1024ul * 16ul];
   size_t num_entries_;
   size_t searches_;
@@ -106,10 +106,10 @@ class LeafIndex {
   size_t memory_usage_;
   // Using for debug
   size_t dram_usage_;
-  DynamicFilter *dynamic_filter;
+  DynamicFilter* dynamic_filter;
   // No copying allowed
-  LeafIndex(const LeafIndex &);
-  void operator=(const LeafIndex &);
+  LeafIndex(const LeafIndex&);
+  void operator=(const LeafIndex&);
 };
 }  // namespace leveldb
 #endif  // STORAGE_LEVELDB_DB_MEMTABLE_H_

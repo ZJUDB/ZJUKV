@@ -12,40 +12,40 @@ namespace leveldb {
 namespace silkstore {
 
 class DeferCode {
-public:
+ public:
   DeferCode(std::function<void()> code) : code(code) {}
   ~DeferCode() { code(); }
 
-private:
+ private:
   std::function<void()> code;
 };
 
 // Perform a KMeans clustering on one-dimensional data_points
 // Produces a vector of group ids. The ith element in the returned vector
 // indicates the group id of data_points[i] after clustering.
-std::vector<int> KMeans(std::vector<double> &data_points, int k);
+std::vector<int> KMeans(std::vector<double>& data_points, int k);
 
 class Segmenter {
-public:
-  virtual std::vector<int> classify(const std::vector<double> &data_points,
+ public:
+  virtual std::vector<int> classify(const std::vector<double>& data_points,
                                     int k) = 0;
 
   virtual ~Segmenter() {}
 };
 
 class KMeansSegmenter : public Segmenter {
-public:
-  std::vector<int> classify(const std::vector<double> &data_points,
+ public:
+  std::vector<int> classify(const std::vector<double>& data_points,
                             int k) override;
 };
 
 class JenksSegmenter : public Segmenter {
-public:
-  std::vector<int> classify(const std::vector<double> &data_points,
+ public:
+  std::vector<int> classify(const std::vector<double>& data_points,
                             int k) override;
 };
 
-} // namespace silkstore
-} // namespace leveldb
+}  // namespace silkstore
+}  // namespace leveldb
 
-#endif // SILKSTORE_UTIL_H
+#endif  // SILKSTORE_UTIL_H

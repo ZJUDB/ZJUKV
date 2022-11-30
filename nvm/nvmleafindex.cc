@@ -1,11 +1,11 @@
 #include "nvm/nvmleafindex.h"
-#include "util/coding.h"
 #include <stdexcept>
+#include "util/coding.h"
 
 namespace leveldb {
 namespace silkstore {
 
-Iterator *NvmLeafIndex::NewIterator(const ReadOptions &options) {
+Iterator* NvmLeafIndex::NewIterator(const ReadOptions& options) {
   // std::__throw_runtime_error(" NvmLeafIndex::NewIterator(const ReadOptions&
   // options) not support\n");
   mutex_.Lock();
@@ -21,8 +21,8 @@ Iterator *NvmLeafIndex::NewIterator(const ReadOptions &options) {
 }
 
 class EmptyKVIterator : public Iterator {
-public:
-  virtual void Seek(const std::string &key){};
+ public:
+  virtual void Seek(const std::string& key){};
 
   virtual void SeekToFirst(){};
 
@@ -39,12 +39,12 @@ public:
   virtual std::string Value() { return nullptr; };
 };
 
-NvmLeafIndex::NvmLeafIndex(const Options &options, const std::string &dbname) {
-  cap_ = options.nvmleafindex_size; // 10ul*1204ul*1024ul*1024ul;
-  const char *filename = options.nvmleafindex_file;
+NvmLeafIndex::NvmLeafIndex(const Options& options, const std::string& dbname) {
+  cap_ = options.nvmleafindex_size;  // 10ul*1204ul*1024ul*1024ul;
+  const char* filename = options.nvmleafindex_file;
   std::string recovery_file = dbname + "/leafindex_recovery";
   bool file_exist = access(recovery_file.c_str(), 0) == 0;
-  NvmManager *nvm_manager_ = new NvmManager(filename, cap_);
+  NvmManager* nvm_manager_ = new NvmManager(filename, cap_);
   const InternalKeyComparator internal_comparator_(
       leveldb::BytewiseComparator());
   leaf_index_ = new LeafIndex(internal_comparator_, nullptr,
@@ -59,7 +59,7 @@ NvmLeafIndex::NvmLeafIndex(const Options &options, const std::string &dbname) {
            leaf_index_->Size());
     // printf("#### NvmLeafIndex  exists #####\n");
   } else {
-    FILE *fd = fopen(recovery_file.c_str(), "w+");
+    FILE* fd = fopen(recovery_file.c_str(), "w+");
     if (fd == NULL) {
       printf(" recovery_file err \n");
     }
@@ -68,19 +68,19 @@ NvmLeafIndex::NvmLeafIndex(const Options &options, const std::string &dbname) {
   }
 }
 
-Status NvmLeafIndex::OpenNvmLeafIndex(const Options &options,
-                                      const std::string &name, DB **dbptr) {
+Status NvmLeafIndex::OpenNvmLeafIndex(const Options& options,
+                                      const std::string& name, DB** dbptr) {
   *dbptr = new NvmLeafIndex(options, name);
   return Status::OK();
 }
 
-const Snapshot *NvmLeafIndex::GetSnapshot() {
+const Snapshot* NvmLeafIndex::GetSnapshot() {
   // printf("NvmLeafIndex::GetSnapshot not supported\n");
   //  throw std::runtime_error("NvmLeafIndex::GetSnapshot not supported");
   return nullptr;
 }
 
-void NvmLeafIndex::ReleaseSnapshot(const Snapshot *snapshot) {
+void NvmLeafIndex::ReleaseSnapshot(const Snapshot* snapshot) {
   // printf("NvmLeafIndex::ReleaseSnapshot not supported\n");
 
   //  throw std::runtime_error("NvmLeafIndex::ReleaseSnapshot not supported");
@@ -92,7 +92,7 @@ NvmLeafIndex::~NvmLeafIndex() {
   }
 }
 
-Status NvmLeafIndex::Write(const WriteOptions &options, WriteBatch *my_batch) {
+Status NvmLeafIndex::Write(const WriteOptions& options, WriteBatch* my_batch) {
   // throw std::runtime_error("NvmLeafIndex::Write not supported");
   if (leaf_index_->ApproximateMemoryUsage() > (cap_ - 100 * MB)) {
     throw std::runtime_error("NvmLeafIndex out of memory\n");
@@ -103,19 +103,19 @@ Status NvmLeafIndex::Write(const WriteOptions &options, WriteBatch *my_batch) {
   return status;
 }
 
-Status NvmLeafIndex::Put(const WriteOptions &options, const Slice &key,
-                         const Slice &value) {
+Status NvmLeafIndex::Put(const WriteOptions& options, const Slice& key,
+                         const Slice& value) {
   std::__throw_runtime_error("NvmLeafIndex::Put not support\n");
   return Status::Corruption("");
 }
 
-Status NvmLeafIndex::Delete(const WriteOptions &options, const Slice &key) {
+Status NvmLeafIndex::Delete(const WriteOptions& options, const Slice& key) {
   std::__throw_runtime_error("NvmLeafIndex::Delete not support\n");
   return Status::Corruption("");
 }
 
-Status NvmLeafIndex::Get(const ReadOptions &options, const Slice &key,
-                         std::string *value) {
+Status NvmLeafIndex::Get(const ReadOptions& options, const Slice& key,
+                         std::string* value) {
   Status s;
   // printf("NvmLeafIndex::Get May Exist bug \n");
   LookupKey lkey(key, 100000000000ul);
@@ -123,7 +123,7 @@ Status NvmLeafIndex::Get(const ReadOptions &options, const Slice &key,
   return s;
 }
 
-bool NvmLeafIndex::GetProperty(const Slice &property, std::string *value) {
+bool NvmLeafIndex::GetProperty(const Slice& property, std::string* value) {
   // throw std::runtime_error("NvmLeafIndex::GetProperty not supported");
   // printf("NvmLeafIndex::GetProperty not supported\n");
   char buf[1000];
@@ -131,13 +131,13 @@ bool NvmLeafIndex::GetProperty(const Slice &property, std::string *value) {
   value->append(buf);
   return true;
 }
-void NvmLeafIndex::GetApproximateSizes(const Range *range, int n,
-                                       uint64_t *sizes) {
+void NvmLeafIndex::GetApproximateSizes(const Range* range, int n,
+                                       uint64_t* sizes) {
   throw std::runtime_error("NvmLeafIndex::GetApproximateSizes not supported");
 }
-void NvmLeafIndex::CompactRange(const Slice *begin, const Slice *end) {
+void NvmLeafIndex::CompactRange(const Slice* begin, const Slice* end) {
   throw std::runtime_error("NvmLeafIndex::CompactRange not supported");
 }
 
-} // namespace silkstore
-} // namespace leveldb
+}  // namespace silkstore
+}  // namespace leveldb

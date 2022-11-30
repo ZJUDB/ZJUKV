@@ -10,8 +10,8 @@
 namespace leveldb {
 
 class FindFileTest {
-public:
-  std::vector<FileMetaData *> files_;
+ public:
+  std::vector<FileMetaData*> files_;
   bool disjoint_sorted_files_;
 
   FindFileTest() : disjoint_sorted_files_(true) {}
@@ -22,23 +22,23 @@ public:
     }
   }
 
-  void Add(const char *smallest, const char *largest,
+  void Add(const char* smallest, const char* largest,
            SequenceNumber smallest_seq = 100,
            SequenceNumber largest_seq = 100) {
-    FileMetaData *f = new FileMetaData;
+    FileMetaData* f = new FileMetaData;
     f->number = files_.size() + 1;
     f->smallest = InternalKey(smallest, smallest_seq, kTypeValue);
     f->largest = InternalKey(largest, largest_seq, kTypeValue);
     files_.push_back(f);
   }
 
-  int Find(const char *key) {
+  int Find(const char* key) {
     InternalKey target(key, 100, kTypeValue);
     InternalKeyComparator cmp(BytewiseComparator());
     return FindFile(cmp, files_, target.Encode());
   }
 
-  bool Overlaps(const char *smallest, const char *largest) {
+  bool Overlaps(const char* smallest, const char* largest) {
     InternalKeyComparator cmp(BytewiseComparator());
     Slice s(smallest != nullptr ? smallest : "");
     Slice l(largest != nullptr ? largest : "");
@@ -171,6 +171,6 @@ TEST(FindFileTest, OverlappingFiles) {
   ASSERT_TRUE(Overlaps("600", "700"));
 }
 
-} // namespace leveldb
+}  // namespace leveldb
 
-int main(int argc, char **argv) { return leveldb::test::RunAllTests(); }
+int main(int argc, char** argv) { return leveldb::test::RunAllTests(); }
